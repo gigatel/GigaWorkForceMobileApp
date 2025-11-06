@@ -1,0 +1,67 @@
+{
+  "project_info": {
+    "project_number": "794849647613",
+    "project_id": "gtpl-f04d9",
+    "storage_bucket": "gtpl-f04d9.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:794849647613:android:2e2c4a80d6d38f790d5794",
+        "android_client_info": {
+          "package_name": "com.gigatel.gtpl"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBM7GgRR5ZnxhRZPYb1i4GH9KMVrMQPX7Y"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:794849647613:android:69e1880b618ffbe60d5794",
+        "android_client_info": {
+          "package_name": "com.gigatel.gtpl_flutter"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBM7GgRR5ZnxhRZPYb1i4GH9KMVrMQPX7Y"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:794849647613:android:f38a465d4910f8300d5794",
+        "android_client_info": {
+          "package_name": "com.gigatel.react"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBM7GgRR5ZnxhRZPYb1i4GH9KMVrMQPX7Y"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

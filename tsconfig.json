@@ -1,0 +1,25 @@
+{
+  "extends": "@react-native/typescript-config/tsconfig.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@apis": ["src/apis"],
+      "@atoms": ["src/components/atoms"],
+      "@molecules": ["src/components/molecules"],
+      "@organisms": ["src/components/organisms"],
+      "@language": ["src/language/*"],
+      "@res": ["src/res"],
+      "@store": ["src/store/store/*"],
+      "@types": ["src/types"],
+      "@slices/*": ["src/store/slices/*"],
+      "@reducers": ["src/store/reducers"],
+      "@utils": ["src/utils"],
+      "@screens/*": ["src/screens/*"],
+      "@navigation/*": ["src/navigations/*"],
+      "@sheets": ["src/action-sheets"],
+      "@locales": ["src/locales/*"],
+      "@hooks/*": ["src/hooks/*"],
+      "@file": [""]
+    }
+  }
+}
