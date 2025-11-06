@@ -26,7 +26,6 @@ import ChamberComplaintsList from '@screens/chamber-complaint/chamber-complaints
 import AddChamberComplaint from '@screens/chamber-complaint/add-chamber-complaint';
 import DeveloperPKPScreen from '@screens/dev-pkp';
 //
-import CloseTicketScreen from '@screens/tickets/CloseTicketScreen';
 import FollowUpScreen from '@screens/tickets/FollowUpScreen';
 import TicketDetailsEnhanced from '@screens/tickets/TicketDetails';
 import TicketsList from '@screens/tickets/TicketsList';
@@ -42,6 +41,7 @@ import VideoRecorder from '@screens/VideoRecording';
 import TubeCoreDetailsScreen from '@screens/tickets/TubeCoreDetailsScreen';
 import ChamberDetailsScreen from '@screens/tickets/ChamberDetailsScreen';
 import {TicketDetailsData} from '../../src/types/ticket.types';
+import CloseTicketScreen from '@screens/tickets/CloseTicketScreen';
 type VideoRecorderRouteParams = {
   projectId: string;
   latLng: string;
@@ -53,6 +53,10 @@ export interface RootStackParamList {
   PrivacyPolicy: undefined;
   Login: undefined;
   StartTicketScreen: {
+    from: 'ticket-details';
+    ticket: TicketDetailsData;
+  };
+  CloseTicketScreen: {
     from: 'ticket-details';
     ticket: TicketDetailsData;
   };
@@ -105,10 +109,6 @@ export interface RootStackParamList {
   ChamberSelection: {
     ticketId: string;
     currentLocation: {lat: number; lng: number};
-  };
-  CloseTicketScreen: {
-    ticketId: string;
-    ticketData: any;
   };
   OldIRScreen: {ticketId: string};
   NewIRScreen: {ticketId: string; chamberDetails?: any};
@@ -182,7 +182,7 @@ const RootStack: FC<{initialRoute: string}> = ({initialRoute}) => {
         options={{headerShown: false}}
       />
       <Stack.Screen name="StartTicketScreen" component={StartTicketScreen} />
-
+      <Stack.Screen name="CloseTicketScreen" component={CloseTicketScreen} />
       <Stack.Screen
         name="TicketDetails"
         component={TicketDetailsEnhanced}
@@ -195,11 +195,6 @@ const RootStack: FC<{initialRoute: string}> = ({initialRoute}) => {
         options={{headerShown: false}}
       />
 
-      <Stack.Screen
-        name="CloseTicketScreen"
-        component={CloseTicketScreen}
-        options={{headerShown: false}}
-      />
       <Stack.Screen
         name="OldIRScreen"
         component={OldIRScreen}

@@ -22,12 +22,13 @@ type TicketsListNavigationProp = NativeStackNavigationProp<
   RootStackParamList,
   'TicketsList'
 >;
+
 type Ticket = {
   id: string | number;
   transactionNo: string;
   assignedDate: string;
   priority: 'low' | 'medium' | 'high';
-  status: 'Assigned' | 'In Progress' | 'Task Complete' | string;
+  status: 'Assigned' | 'In Progress' | 'Closed By Splicer' | string;
   customerName: string;
   circuitId?: string;
   natureOfFault?: string;
@@ -38,16 +39,18 @@ type Ticket = {
   assignedTo?: string;
   linkName?: string;
   pathLocation?: string;
+  closedOnSplierSystem?: string; // ✅ added
 };
+
 type ApiTicketItem = {
   id: number;
   complaintCode: string;
   routeName: string;
-  alarmType: string; // e.g. SPLICE_BREAK / FIBER_BREAK
+  alarmType: string;
   totalDistance: number;
   cutDistance: number;
-  latLng: string; // "lat,lng"
-  status: string; // e.g. Assigned
+  latLng: string;
+  status: string;
   statusUpdatedOn: string | null;
   statusUpdatedByName: string | null;
   assignedByName: string | null;
@@ -57,12 +60,14 @@ type ApiTicketItem = {
   startedOn: string | null;
   startedByName: string | null;
 };
+
 const formatDate = (d: Date) =>
   d.toLocaleDateString('en-GB', {
     day: '2-digit',
     month: 'short',
     year: 'numeric',
   });
+
 const TicketsList: React.FC = () => {
   const {t} = useTranslation();
   const navigation = useNavigation<TicketsListNavigationProp>();
@@ -74,11 +79,19 @@ const TicketsList: React.FC = () => {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [isDatePickerVisible, setDatePickerVisibility] = useState(false);
+
+  // ✅ Only run timer if open tickets exist
   useEffect(() => {
-    const t = setInterval(() => setCurrentTime(new Date()), 1000);
-    return () => clearInterval(t);
-  }, []);
+    const hasOpenTickets = tickets.some(t => !t.closedOnSplierSystem);
+    if (!hasOpenTickets) return;
+
+    const interval = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [tickets]);
+
   const getStatusColor = (status?: string) => {
     const s = (status || '').toLowerCase();
     if (s.includes('assign')) return COLORS.SUCCESS;
@@ -87,11 +100,13 @@ const TicketsList: React.FC = () => {
     if (s.includes('complete') || s.includes('resolved')) return COLORS.SUCCESS;
     return COLORS.TEXT_MEDIUM;
   };
+
   const getPriorityFromAlarm = (alarmType?: string): Ticket['priority'] => {
     const a = (alarmType || '').toUpperCase();
     if (a.includes('FIBER_BREAK') || a.includes('SPLICE_BREAK')) return 'high';
     return 'medium';
   };
+
   const getPriorityColor = (priority?: string) => {
     const p = (priority || '').toLowerCase();
     if (p === 'high') return COLORS.ERROR;
@@ -99,17 +114,28 @@ const TicketsList: React.FC = () => {
     if (p === 'low') return COLORS.SUCCESS;
     return COLORS.TEXT_MEDIUM;
   };
-  const calculateDuration = (assignedDate?: string): string => {
+
+  // ✅ Duration logic — freezes when closedOnSplierSystem exists
+  const calculateDuration = (
+    assignedDate?: string,
+    closedOnSplierSystem?: string,
+    currentTime?: Date,
+  ): string => {
     if (!assignedDate) return '00:00:00';
     try {
       const assigned = new Date(assignedDate);
-      const now = currentTime;
-      const diffMs = now.getTime() - assigned.getTime();
+      const endTime = closedOnSplierSystem
+        ? new Date(closedOnSplierSystem)
+        : currentTime ?? new Date();
+
+      const diffMs = endTime.getTime() - assigned.getTime();
       if (diffMs < 0) return '00:00:00';
-      const diffSeconds = Math.floor(diffMs / 1000);
-      const hours = Math.floor(diffSeconds / 3600);
-      const minutes = Math.floor((diffSeconds % 3600) / 60);
-      const seconds = diffSeconds % 60;
+
+      const totalSeconds = Math.floor(diffMs / 1000);
+      const hours = Math.floor(totalSeconds / 3600);
+      const minutes = Math.floor((totalSeconds % 3600) / 60);
+      const seconds = totalSeconds % 60;
+
       return `${hours.toString().padStart(2, '0')}:${minutes
         .toString()
         .padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
@@ -117,11 +143,18 @@ const TicketsList: React.FC = () => {
       return '00:00:00';
     }
   };
-  const mapApiItemToTicket = (it: ApiTicketItem): Ticket => {
-    console.log('itData:', {it});
 
+  // ✅ FIXED TYPE ERROR HERE
+  const mapApiItemToTicket = (it: ApiTicketItem): Ticket => {
     const assignedDate =
-      it.assignedOn || it.statusUpdatedOn || new Date().toISOString();
+      it.assignedOn ?? it.statusUpdatedOn ?? new Date().toISOString();
+
+    // ✅ Cleanly convert null → undefined
+    const closedOnSplierSystem: string | undefined =
+      it.status === 'Closed By Splicer' && it.statusUpdatedOn
+        ? it.statusUpdatedOn
+        : undefined;
+
     return {
       id: it.id,
       transactionNo: it.complaintCode,
@@ -129,25 +162,20 @@ const TicketsList: React.FC = () => {
       priority: getPriorityFromAlarm(it.alarmType),
       status: it.status || 'Assigned',
       customerName: it.routeName || '-',
-      circuitId: undefined,
       natureOfFault: it.alarmType || '-',
-      circuitFrom: undefined,
-      circuitTo: undefined,
-      remark: undefined,
       assignedBy: it.assignedByName || it.statusUpdatedByName || '-',
       assignedTo: it.assignedTo || '-',
       linkName: it.routeName || '-',
       pathLocation: it.latLng || '-',
+      closedOnSplierSystem, // ✅ type-safe assignment
     };
   };
+
   const loadTickets = async (showLoader = true) => {
     try {
       if (showLoader) setLoading(true);
       const action: any = await (dispatch as any)(
-        getEmpComplaintsByDate({
-          date: selectedDate, // thunk will iso-ify
-          // empId / organizationId can be resolved inside thunk
-        }),
+        getEmpComplaintsByDate({date: selectedDate}),
       );
       if ('payload' in action && action.payload?.items) {
         const mapped = (action.payload.items as ApiTicketItem[]).map(
@@ -167,7 +195,6 @@ const TicketsList: React.FC = () => {
 
   useEffect(() => {
     loadTickets(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDate]);
 
   const filteredTickets = useMemo(() => {
@@ -185,10 +212,11 @@ const TicketsList: React.FC = () => {
         (t.pathLocation || '').toLowerCase().includes(q),
     );
   }, [tickets, searchText]);
+
   const handleTicketPress = (ticket: Ticket) => {
-    console.log('ticket', ticket.id);
     navigation.navigate('TicketDetails', {ticketId: ticket.id});
   };
+
   const Field = ({
     label,
     value,
@@ -202,7 +230,7 @@ const TicketsList: React.FC = () => {
   }) => (
     <View style={styles.col}>
       <Text style={styles.label} numberOfLines={1}>
-        {label} :{' '}
+        {label}:{' '}
         <Text
           style={[
             pill ? styles.valuePill : styles.value,
@@ -226,16 +254,16 @@ const TicketsList: React.FC = () => {
           <View style={[styles.leftStrip, {backgroundColor: statusColor}]} />
           <View style={styles.card}>
             <View style={styles.headerMainRow}>
-              <View>
-                <Text style={styles.cardIndex}>
-                  {index + 1}. {item.transactionNo}
-                </Text>
-              </View>
+              <Text style={styles.cardIndex}>
+                {index + 1}. {item.transactionNo}
+              </Text>
+
               <View style={[styles.badge, {backgroundColor: statusColor}]}>
                 <Text style={styles.badgeText}>
                   {(item.status || '').toUpperCase()}
                 </Text>
               </View>
+
               <View style={styles.topRightBlock}>
                 <View style={styles.dateBadge}>
                   <Text style={styles.dateBadgeText}>
@@ -254,7 +282,11 @@ const TicketsList: React.FC = () => {
             <View style={styles.badges}>
               <View style={[styles.badge, styles.badgeTimer]}>
                 <Text style={styles.badgeText}>
-                  {calculateDuration(item.assignedDate)}
+                  {calculateDuration(
+                    item.assignedDate,
+                    item.closedOnSplierSystem,
+                    currentTime,
+                  )}
                 </Text>
               </View>
             </View>
@@ -306,12 +338,11 @@ const TicketsList: React.FC = () => {
           <TouchableOpacity
             style={styles.dateBtn}
             onPress={() => setShowDatePicker(true)}>
-            {/* 
-            onPress={() => setDatePickerVisibility(true)}> */}
             <Text style={styles.dateText}>{formatDate(selectedDate)}</Text>
           </TouchableOpacity>
         </View>
       </View>
+
       <FlatList
         data={filteredTickets}
         renderItem={renderTicket}
@@ -334,6 +365,7 @@ const TicketsList: React.FC = () => {
           </View>
         }
       />
+
       <DatePicker
         modal
         open={showDatePicker}
@@ -346,8 +378,6 @@ const TicketsList: React.FC = () => {
         }}
         onCancel={() => setShowDatePicker(false)}
       />
-
-      {/* Date picker kept commented for now */}
     </Screen>
   );
 };

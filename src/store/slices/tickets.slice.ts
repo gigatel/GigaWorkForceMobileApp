@@ -32,6 +32,16 @@ export type CreateFollowupBody = {
   image1?: FollowupImage;   // (optional) base64 + ext
   image2?: FollowupImage;   // (optional)
 };
+export type CloseFollowupBody = {
+  assignTaskId: number;     // (required) the ticket/work id (from your backend)
+  address: string;          // (required) text address / nearest location
+  remark: string;           // (required) note text
+  empId: number;            // (required) employee id (we default from Preferences)
+  lat: string;              // (required) store as string to keep exact format
+  lng: string;              // (required) store as string to keep exact format
+  image1?: FollowupImage;   // (optional) base64 + ext
+  image2?: FollowupImage;   // (optional)
+};
 
 // Minimal followup item shape (adjust fields as your API returns)
 export type FollowupItem = {
@@ -256,6 +266,67 @@ export const createTicketFollowup = createAsyncThunk<
       const res: { status?: number; success?: boolean; message?: string; data?: any } =
         await APIs.postRequestWithJson({
           path:  `${URLs.followUpComplaint}`,
+          params: body,
+          isAuth: true,
+        });
+      if (!res) return rejectWithValue({ message: 'Server not responding' });
+      if (Number(res.status) !== 200 || res.success === false) {
+        return rejectWithValue({
+          status: res?.status,
+          message: res?.message || 'Failed to create follow-up',
+          data: res?.data,
+          success: false,
+        });
+      }
+      return res;
+    } catch (error: any) {
+      return rejectWithValue({
+        status: error?.status ?? error?.response?.status,
+        success: false,
+        message: error?.message ?? 'Network/unknown error',
+        data: error?.data ?? error?.response?.data,
+      });
+    }
+  }
+);
+export const closeTicketFollowup = createAsyncThunk<
+  // Return type (keep generic; your API seems to return {status,success,message,data?})
+  { status?: number; success?: boolean; message?: string; data?: any } | undefined,
+  // Args coming from StartTicketScreen (empId auto-fills if omitted)
+  Partial<CloseFollowupBody> & {
+    assignTaskId: number;
+    address: string;
+    remark: string;
+    lat: string;
+    lng: string;
+  },
+  { rejectValue: ApiError }
+>(
+  'tickets/closeTicketFollowup',
+  async (args, { rejectWithValue }) => {
+    try {
+      const empId =
+        typeof args.empId === 'number' && !Number.isNaN(args.empId)
+          ? args.empId
+          : Number(Preferences.getData('EMPLOYEE_ID'));
+
+      if (!empId || Number.isNaN(empId)) {
+        return rejectWithValue({ message: 'Missing empId (Preferences or arg)' });
+      }
+       const body: CloseFollowupBody = {
+        assignTaskId: args.assignTaskId,
+        address: args.address,
+        remark: args.remark,
+        empId,
+        lat: args.lat,
+        lng: args.lng,
+        ...(args.image1 ? { image1: args.image1 } : {}),
+        ...(args.image2 ? { image2: args.image2 } : {}),
+      };
+      console.log('CloseFollowupBodyData:',{body});
+      const res: { status?: number; success?: boolean; message?: string; data?: any } =
+        await APIs.postRequestWithJson({
+          path:  `${URLs.removefollowUpComplaint}`,
           params: body,
           isAuth: true,
         });

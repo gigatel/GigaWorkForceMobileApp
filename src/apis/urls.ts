@@ -14,3 +14,4 @@ export const getDashboardList = BASE_URL + 'AppDashboard/DashboardList2';
 export const getComplaintsDate = BASE_URL3 + 'Complaint/GetEmpComplaintsByDate';
 export const getComplaintsDetail = BASE_URL3 + 'Complaint/GetMobComplaintDetailById';
 export const followUpComplaint = BASE_URL3 + 'Complaint/ComplaintFollowUps';
+export const removefollowUpComplaint = BASE_URL3 + 'Complaint/ComplaintClosedBySplicer';

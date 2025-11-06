@@ -322,9 +322,26 @@ const TicketDetailsScreen: React.FC = () => {
   };
   const handleUpdate = () => {};
   const handleClose = () => {
-    Common.alert({
-      title: 'Close Ticket',
-      msg: 'Are you sure you want to close this ticket?',
+    if (!ticketDetails) {
+      console.warn('[handleStart] no ticketDetails yet');
+      return;
+    }
+
+    // strip any non-serializable stuff just in case
+    const payload = JSON.parse(JSON.stringify(ticketDetails));
+
+    console.log('[TicketDetails -> navigate] sending:', {
+      LinkId: payload.LinkId,
+      linkName: payload.linkName,
+      cutLocation: payload.cutLocation,
+      cutLat: payload.cutLat,
+      cutLng: payload.cutLng,
+      assignID: payload.assignId,
+    });
+
+    navigation.navigate('CloseTicketScreen', {
+      from: 'ticket-details',
+      ticket: payload,
     });
   };
   const getPriorityColor = (p: string) =>
@@ -726,34 +743,72 @@ const TicketDetailsScreen: React.FC = () => {
         )}
 
         {/* Status Change Section */}
+        {/* Status Change Section */}
+        {/* 🟩 Status Change Section */}
+        {/* 🟩 Status Change Section */}
+        {/* 🟩 Status Change Section */}
         <View style={styles.statusChangeSection}>
           <Text style={styles.statusChangeTitle}>
             Change ticket status below
           </Text>
           <View style={styles.statusButtons}>
-            <TouchableOpacity
-              style={[
-                styles.statusBtn,
-                styles.startBtn,
-                // isStartDisabled && styles.disabledBtn,
-              ]}
-              onPress={handleStart}
-              // disabled={isStartDisabled}
-            >
-              <Text style={styles.statusBtnText}>START</Text>
-            </TouchableOpacity>
-            {/* <TouchableOpacity
-              style={[styles.statusBtn, styles.updateBtn]}
-              onPress={handleUpdate}>
-              <Text style={styles.statusBtnText}>UPDATE</Text>
-            </TouchableOpacity> */}
-            <TouchableOpacity
-              style={[styles.statusBtn, styles.closeBtn]}
-              onPress={handleClose}>
-              <Text style={styles.statusBtnText}>CLOSE</Text>
-            </TouchableOpacity>
+            {(() => {
+              const lowerStatus = (ticketDetails?.status || '')
+                .trim()
+                .toLowerCase();
+
+              // 🟥 START button disabled for these statuses
+              const isStartDisabled = [
+                'closed by system',
+                'task complete',
+                'closed',
+                'closed by splicer',
+                'in progress',
+              ].includes(lowerStatus);
+
+              // 🟥 CLOSE button disabled for these statuses
+              const isCloseDisabled = [
+                'closed by system',
+                'task complete',
+                'closed',
+                'closed by splicer',
+              ].includes(lowerStatus);
+
+              // 🟩 Change START label if status is "In Progress"
+              const startButtonLabel =
+                lowerStatus === 'in progress' ? 'START' : 'START';
+
+              return (
+                <>
+                  {/* START / FOLLOWUP Button */}
+                  <TouchableOpacity
+                    style={[
+                      styles.statusBtn,
+                      styles.startBtn,
+                      isStartDisabled && styles.disabledBtn,
+                    ]}
+                    onPress={handleStart}
+                    disabled={isStartDisabled}>
+                    <Text style={styles.statusBtnText}>{startButtonLabel}</Text>
+                  </TouchableOpacity>
+
+                  {/* CLOSE Button */}
+                  <TouchableOpacity
+                    style={[
+                      styles.statusBtn,
+                      styles.closeBtn,
+                      isCloseDisabled && styles.disabledBtn,
+                    ]}
+                    onPress={handleClose}
+                    disabled={isCloseDisabled}>
+                    <Text style={styles.statusBtnText}>CLOSE</Text>
+                  </TouchableOpacity>
+                </>
+              );
+            })()}
           </View>
         </View>
+
         {/* Info Card */}
         {/* <View style={styles.contactDetailsCard}>
           <View style={styles.contactCardHeader}>

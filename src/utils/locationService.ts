@@ -77,11 +77,14 @@ export const startLocationService = async (): Promise<boolean> => {
     return false;
   }
 };
-
 // Handle foreground notification events
 export function setupForegroundServiceEvents() {
   const unsubscribe = notifee.onForegroundEvent(({ type, detail }: { type: any, detail: any }) => {
     console.log('setupForegroundServiceEvents', type, detail);
+    console.log('detail', detail?.notification?.data?.body);
+    console.log('type:',type);
+    
+    
     if (type === EventType.ACTION_PRESS && detail?.pressAction.id === 'details') {
       log('Stop tracking action pressed');
       // notifee.stopForegroundService();

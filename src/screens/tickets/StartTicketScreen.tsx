@@ -358,7 +358,7 @@ const StartTicketScreen: React.FC<Props> = ({
         //   {text: 'OK', onPress: () => navigation.navigate('TicketsList')},
         // ]);
         Common.showToast('Ticket Started  successfully.');
-        navigation.goBack();
+        navigation.navigate('TicketsList');
       } else {
         Alert.alert('Error', res?.message || 'Failed to start ticket');
       }
