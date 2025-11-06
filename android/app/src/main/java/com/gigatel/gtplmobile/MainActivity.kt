@@ -1,4 +1,4 @@
-package com.gigatel.react
+package com.gigatrack
 
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate

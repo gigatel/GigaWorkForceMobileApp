@@ -1,4 +1,4 @@
-package com.gigatel.react
+package com.gigatrack
 import com.facebook.react.ReactPackage
 import com.facebook.react.bridge.NativeModule
 import com.facebook.react.bridge.ReactApplicationContext

@@ -1,4 +1,4 @@
-package com.gigatel.react
+package com.gigatrack
 
 import android.content.Intent
 import android.net.Uri

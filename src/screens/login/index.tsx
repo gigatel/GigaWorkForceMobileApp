@@ -97,7 +97,6 @@ const Login: React.FC<ScreenProps.Login> = ({loading}) => {
     </Screen>
   );
 };
-
 const MapStateToProps = (state: RootState) => ({
   loading: state.login.loading === 'pending' ? true : false,
 });

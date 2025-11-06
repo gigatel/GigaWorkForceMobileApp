@@ -83,6 +83,8 @@ export const checkNetworkBeforeRequest = async (checkSpeed = false) => {
     // lightweight connectivity probe
     await fetch('https://www.google.com/generate_204', { method: 'GET' });
     const ping = Date.now() - startTime;
+    console.log('pingData:',{ping});
+    
 
     if (ping > 1500) {
       Alert.alert('Slow Internet', 'Your connection is slow. Please try again later.');

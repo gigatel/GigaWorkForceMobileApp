@@ -71,9 +71,9 @@ android {
     ndkVersion rootProject.ext.ndkVersion
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
-    namespace "com.gigatel.react"
+    namespace "com.gigatrack"
     defaultConfig {
-        applicationId "com.gigatel.react"
+        applicationId "com.gigatrack"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 2
