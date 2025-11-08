@@ -15,7 +15,7 @@ export function attachDispatch(d: StoreDispatch) {
 }
 
 const TASK_NAME = 'LocationBatteryBGTask';
-const SLEEP_MS = 10_000;
+const SLEEP_MS = 5_000;
 
 // Android-only icon/channel hints
 const ANDROID_ICON_NAME = 'ic_launcher';

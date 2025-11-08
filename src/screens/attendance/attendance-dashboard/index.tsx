@@ -101,7 +101,7 @@ const AttendanceDashboard: FC<ScreenProps.AttendanceDashboard> = ({
 
   const getLastAddress = async () => {
     const data = await Location.getAddressFromLatLong();
-    Preferences.setData('LAST_GEO_ADDRESS', data);
+    // Preferences.setData('LAST_GEO_ADDRESS', data);
   };
 
   // Today Attendance (background; does not block full screen)

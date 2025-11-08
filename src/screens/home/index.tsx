@@ -17,7 +17,10 @@ import {COLORS, CONSTANT, FONTS, IMAGES, SIZE, STYLES} from '@res';
 // import {todayAttendanceApi} from '@slices/attendance.slice';
 import {dashboardListApi, getLoginTokenApi} from '@slices/dashboard.slice';
 import {DataType, ScreenProps} from '@types';
-import {attachPosterDispatch} from '../../services/LocationPosterCore';
+import {
+  postOnceIfDue,
+  attachPosterDispatch,
+} from '../../services/LocationPosterCore';
 import {startForegroundPoster} from '../../services/ForegroundLocationPoster';
 import {attachDispatch} from '../../services/LocationBatteryService';
 import {
@@ -35,6 +38,7 @@ import React, {
   useEffect,
   useMemo,
   useState,
+  useRef,
 } from 'react';
 import {
   AppState,
@@ -539,12 +543,9 @@ const Home: FC<ScreenProps.Home> = ({loading, dashboardList, navigation}) => {
   const [dlTotal, setDlTotal] = useState<number>(-1);
 
   const [showPrivacy, setShowPrivacy] = useState(false);
-  const dispatch = useDispatch<StoreDispatch>();
+  const locationTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  useEffect(() => {
-    dispatch(getLoginTokenApi());
-    Permissions.requestPermission();
-  }, [dispatch]);
+  const dispatch = useDispatch<StoreDispatch>();
 
   useEffect(() => {
     const parent = navigation?.getParent?.();
@@ -653,6 +654,65 @@ const Home: FC<ScreenProps.Home> = ({loading, dashboardList, navigation}) => {
     });
     return () => sub.remove();
   }, [ensurePostingServices]);
+  // ✅ Start foreground + periodic updates every 30s while focused
+  useFocusEffect(
+    useCallback(() => {
+      let isMounted = true;
+
+      const startInterval = () => {
+        if (locationTimerRef.current) clearInterval(locationTimerRef.current);
+        locationTimerRef.current = setInterval(async () => {
+          try {
+            await postOnceIfDue('fg', dispatch);
+          } catch (e) {
+            __DEV__ && console.warn('[Home] postOnceIfDue failed', e);
+          }
+        }, 30_000); // every 30 seconds
+      };
+
+      const startLocationFlow = async () => {
+        try {
+          await ensurePostingServices();
+          startInterval();
+        } catch (err) {
+          __DEV__ && console.warn('[Home] startLocationFlow failed', err);
+        }
+      };
+
+      startLocationFlow();
+
+      return () => {
+        isMounted = false;
+        if (locationTimerRef.current) clearInterval(locationTimerRef.current);
+      };
+    }, [ensurePostingServices, dispatch]),
+  );
+
+  // ✅ Restart services when app comes to foreground or background
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', async state => {
+      if (['active', 'background'].includes(state)) {
+        await ensurePostingServices();
+      }
+    });
+    return () => sub.remove();
+  }, [ensurePostingServices]);
+
+  // ✅ Continue with your existing location + dashboard setup
+  const handleStartService = useCallback(async () => {
+    const res = await Location.checkPermission();
+    if (res) {
+      await Location.initializeConfig();
+      await Services.startLocationService();
+      await ensurePostingServices();
+    }
+  }, [ensurePostingServices]);
+
+  useEffect(() => {
+    dispatch(getLoginTokenApi());
+    Permissions.requestPermission();
+    handleStartService();
+  }, [dispatch, handleStartService]);
 
   // (Optional) Map key setter paused while modules are static
   // useEffect(() => {
@@ -735,15 +795,6 @@ const Home: FC<ScreenProps.Home> = ({loading, dashboardList, navigation}) => {
     }, []),
   );
 
-  const handleStartService = useCallback(async () => {
-    const res = await Location.checkPermission();
-    if (res) {
-      await Location.initializeConfig();
-      await Services.startLocationService();
-      await ensurePostingServices();
-    }
-  }, [ensurePostingServices]);
-
   const getDashboardData = useCallback(
     (refresh: boolean) => {
       dispatch(dashboardListApi({isRefresh: refresh}));
@@ -758,28 +809,34 @@ const Home: FC<ScreenProps.Home> = ({loading, dashboardList, navigation}) => {
     );
   }, [dispatch, getDashboardData, handleStartService]);
 
+  // useFocusEffect(
+  //   useCallback(() => {
+  //     setShowPrivacy(false);
+  //     handleStartService();
+
+  //     Geolocation.getCurrentPosition(
+  //       info => {
+  //         Preferences.setData('LAST_GEO_ADDRESS', {
+  //           address: '',
+  //           lat: info.coords.latitude,
+  //           long: info.coords.longitude,
+  //         });
+  //         Location.getAddressWithLatLong(
+  //           info.coords.latitude,
+  //           info.coords.longitude,
+  //         ).then(data => {
+  //           Preferences.setData('LAST_GEO_ADDRESS', data);
+  //         });
+  //       },
+  //       err => Common.error('getCurrentPosition HOME Error::', err),
+  //       {timeout: 20000, maximumAge: 0, enableHighAccuracy: false},
+  //     );
+  //   }, [handleStartService]),
+  // );
   useFocusEffect(
     useCallback(() => {
       setShowPrivacy(false);
-      handleStartService();
-
-      Geolocation.getCurrentPosition(
-        info => {
-          Preferences.setData('LAST_GEO_ADDRESS', {
-            address: '',
-            lat: info.coords.latitude,
-            long: info.coords.longitude,
-          });
-          Location.getAddressWithLatLong(
-            info.coords.latitude,
-            info.coords.longitude,
-          ).then(data => {
-            Preferences.setData('LAST_GEO_ADDRESS', data);
-          });
-        },
-        err => Common.error('getCurrentPosition HOME Error::', err),
-        {timeout: 20000, maximumAge: 0, enableHighAccuracy: false},
-      );
+      handleStartService(); // this starts the foreground poster which starts the watcher
     }, [handleStartService]),
   );
 

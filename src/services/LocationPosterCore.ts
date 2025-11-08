@@ -11,6 +11,80 @@ let dispatchRef: StoreDispatch | null = null;
 export function attachPosterDispatch(d: StoreDispatch) {
   dispatchRef = d;
 }
+// ✅ NEW: shared core sender
+async function sendLocationToServer({
+  lat, long, address = '',
+  source = 'bg' as 'fg'|'bg',
+  forceDispatch,
+}: {
+  lat: number; long: number; address?: string;
+  source?: 'fg' | 'bg'; forceDispatch?: StoreDispatch;
+}) {
+  const net = await NetInfo.fetch();
+  const online = (net.isConnected ?? false) && (net.isInternetReachable ?? true);
+  if (!online) return;
+
+  const power = await DeviceInfo.getPowerState().catch(() => null as any);
+  const batteryNum = Math.round(((power?.batteryLevel ?? 0) as number) * 100);
+  const batteryStatus = `${batteryNum}%`;
+
+  const token: string = String(Preferences.getData(Preferences.KEY.API_AUTH_TOKEN) ?? '');
+  const employeeID = Number(Preferences.getData(Preferences.KEY.EMPLOYEE_ID) ?? 0);
+  const companyId = Number(Preferences.getData(Preferences.KEY.COMPANY_ID) ?? 11) || 11;
+  const OrganizationCode = String(Preferences.getData(Preferences.KEY.ORGANIZATION_CODE) ?? '');
+
+  if (!token || !employeeID || !companyId) return;
+
+  const body = {
+    token,
+    employeeID,
+    address: address ?? '',
+    batteryStatus,
+    delay: '0',
+    dateTime: formatServerDateTimeIST(),
+    distance: 0,
+    isActive: true,
+    latitude: String(lat),
+    longitude: String(long),
+    companyId,
+    OrganizationCode,
+  };
+
+  const dispatchToUse = forceDispatch ?? dispatchRef;
+  if (!dispatchToUse) return;
+
+  const action = PostLocationApi({ body });
+  const result: any = dispatchToUse(action);
+  if (result && typeof result.unwrap === 'function') {
+    await result.unwrap();
+  } else {
+    await result;
+  }
+  Preferences.setData(Preferences.KEY.LAST_POST_TS, Date.now());
+  __DEV__ && console.log(`[Poster:${source}] ✅ posted @ ${body.dateTime}`, { lat, long });
+}
+
+
+export async function postNowWithCoords(
+  lat: number,
+  long: number,
+  source: 'fg' | 'bg' = 'bg',
+  forceDispatch?: StoreDispatch,
+  address?: string,
+) {
+  const lastTs: number = Number(Preferences.getData(Preferences.KEY.LAST_POST_TS) ?? 0);
+  if (posting || Date.now() - lastTs < MIN_GAP_MS) return;
+
+  try {
+    posting = true;
+    await sendLocationToServer({ lat, long, address, source, forceDispatch });
+  } catch (e) {
+    Common?.warn?.(`[Poster:${source}] ❌ failed`, e);
+  } finally {
+    posting = false;
+  }
+}
+
 
 export function formatServerDateTimeIST(d: Date = new Date()) {
   const pad = (n: number) => String(n).padStart(2, '0');
@@ -24,7 +98,7 @@ export function formatServerDateTimeIST(d: Date = new Date()) {
   const ss = pad(ist.getSeconds());
   return `${DD}-${MM}-${YYYY} ${HH}:${mm}:${ss}`;
 }
-const MIN_GAP_MS = 10_000;
+const MIN_GAP_MS = 5_000;
 let posting = false;
 export async function postOnceIfDue(
   source: 'fg' | 'bg' = 'fg',
@@ -64,7 +138,7 @@ export async function postOnceIfDue(
             resolve();
           },
           _err => resolve(),
-          { enableHighAccuracy: true, timeout: 10_000, maximumAge: 0 },
+          { enableHighAccuracy: true, timeout: 5_000, maximumAge: 0 },
         );
       });
     }

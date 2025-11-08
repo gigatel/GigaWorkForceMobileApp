@@ -416,7 +416,7 @@ const PatrollerTask: FC<ScreenProps.PatrollerTask> = ({
                 coords.latitude,
                 coords.longitude,
               );
-              Preferences.setData('LAST_GEO_ADDRESS', data);
+              // Preferences.setData('LAST_GEO_ADDRESS', data);
             } catch {}
 
             callDataApi({
@@ -596,7 +596,7 @@ const PatrollerTask: FC<ScreenProps.PatrollerTask> = ({
             Common.warn('🔍 Getting Address in Watch');
             try {
               const data = await Location.getAddressWithLatLong(lat, lng);
-              Preferences.setData('LAST_GEO_ADDRESS', data);
+              // Preferences.setData('LAST_GEO_ADDRESS', data);
             } catch (err) {
               Common.error('❌ Failed to get address from lat/lng', err);
             }
@@ -608,7 +608,7 @@ const PatrollerTask: FC<ScreenProps.PatrollerTask> = ({
             lat,
             long: lng,
           };
-          Preferences.setData('LAST_GEO_ADDRESS', updatedAddress);
+          // Preferences.setData('LAST_GEO_ADDRESS', updatedAddress);
         },
         err => {
           Common.error('❌ Error in Geolocation Watch:', err);

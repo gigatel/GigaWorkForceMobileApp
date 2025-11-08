@@ -124,7 +124,7 @@ const PatrollerTask: FC<ScreenProps.SubmitPatrollerTask> = ({
           lat,
           long: lng,
         };
-        Preferences.setData('LAST_GEO_ADDRESS', updatedAddress);
+        // Preferences.setData('LAST_GEO_ADDRESS', updatedAddress);
         if (selectedChamber) {
           const dis = Location.calculateDistance(
             parseFloat(selectedChamber.chamberLat),
@@ -246,7 +246,7 @@ const PatrollerTask: FC<ScreenProps.SubmitPatrollerTask> = ({
       if (!currentAddress?.address) {
         currentAddress = Preferences.getData('LAST_GEO_ADDRESS');
       }
-      Preferences.setData('LAST_GEO_ADDRESS', currentAddress);
+      // Preferences.setData('LAST_GEO_ADDRESS', currentAddress);
 
       // chamberAddress is already present in selectedChamber per your comment
       let chamberAddress = selectedChamber.chamberAddress;

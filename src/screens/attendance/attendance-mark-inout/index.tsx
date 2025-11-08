@@ -65,7 +65,7 @@ const AttendanceInOut: FC<ScreenProps.AttendanceInOut> = ({
       const data = await Location.getAddressFromLatLong();
       Common.log('Address:::', data);
       setAddress(data);
-      Preferences.setData('LAST_GEO_ADDRESS', data); // CHANGE: ensure fallback always exists
+      // Preferences.setData('LAST_GEO_ADDRESS', data); // CHANGE: ensure fallback always exists
     } catch (e) {
       Common.error('Address fetch failed', e);
     } finally {

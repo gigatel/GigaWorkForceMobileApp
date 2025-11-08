@@ -102,7 +102,7 @@ const DDAttendanceDashboard: FC<ScreenProps.DDAttendanceDashboard> = ({
 
   const getLastAddress = async () => {
     const data = await Location.getAddressFromLatLong();
-    Preferences.setData('LAST_GEO_ADDRESS', data);
+    // Preferences.setData('LAST_GEO_ADDRESS', data);
   };
 
   // Call Totay Attendance API
