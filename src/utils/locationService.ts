@@ -115,11 +115,9 @@ export const startLocationTracking = async (): Promise<number | null> => {
       log('Cannot start foreground service: missing location permissions');
       return null;
     }
-
     watchId = Geolocation.watchPosition(
       async position => {
         const { latitude, longitude } = position?.coords;
-
         log('BG Location::', position?.coords, getFormatedTime('HH:mm:ss'));
         const isnet = await getNetConnection();
         if (isnet) {

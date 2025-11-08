@@ -81,6 +81,7 @@ let navigator: NativeStackNavigationProp<RootStackParamList>;
 function getRandomDelay() {
   return Math.floor(Math.random() * (10000 - 2000 + 1)) + 2000;
 }
+
 const check = (name: string, lName: string) =>
   Common.isEqualIgnoreCase(name, lName);
 const pickGoogleMapKey = (r: any) =>
@@ -535,6 +536,7 @@ const Home: FC<ScreenProps.Home> = ({loading, dashboardList, navigation}) => {
   const [showLocationSheet, setShowLocationSheet] = useState(false);
   const [isLoading, setisLoading] = useState(false);
   const [showSync, setShowSync] = useState(false);
+  const [currentAddress, setCurrentAddress] = useState('');
 
   // APK download progress (Android)
   const [dlActive, setDlActive] = useState<boolean>(false);
@@ -546,6 +548,16 @@ const Home: FC<ScreenProps.Home> = ({loading, dashboardList, navigation}) => {
   const locationTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const dispatch = useDispatch<StoreDispatch>();
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const addrData = Preferences.getData(Preferences.KEY.LAST_GEO_ADDRESS);
+      if (addrData?.address && addrData.address !== currentAddress) {
+        setCurrentAddress(addrData.address);
+      }
+    }, 5000); // check every 5s for UI update
+
+    return () => clearInterval(interval);
+  }, [currentAddress]);
 
   useEffect(() => {
     const parent = navigation?.getParent?.();
@@ -852,6 +864,57 @@ const Home: FC<ScreenProps.Home> = ({loading, dashboardList, navigation}) => {
           (mv1?.project_name as string | undefined) ?? 'Employee Master',
       };
     }, [dashboardList]);
+  // ✅ Reliable location getter with retry + fallback
+  const getSafeLocation = async (
+    retries = 3,
+  ): Promise<{lat: number; long: number} | null> => {
+    return new Promise(resolve => {
+      const attempt = (remaining: number) => {
+        Geolocation.getCurrentPosition(
+          pos => {
+            resolve({
+              lat: pos.coords.latitude,
+              long: pos.coords.longitude,
+            });
+          },
+          err => {
+            if (remaining > 1) {
+              __DEV__ &&
+                console.warn(
+                  `[Home] getCurrentPosition failed (${
+                    retries - remaining + 1
+                  }), retrying...`,
+                  err?.message,
+                );
+              setTimeout(() => attempt(remaining - 1), 2000); // retry after 2s
+            } else {
+              __DEV__ &&
+                console.warn(
+                  '[Home] getCurrentPosition final fail:',
+                  err?.message,
+                );
+              // fallback to last known location
+              const last = Preferences.getData(
+                Preferences.KEY.LAST_GEO_ADDRESS,
+              );
+              if (last?.lat && last?.long) {
+                resolve({lat: last.lat, long: last.long});
+              } else {
+                resolve(null);
+              }
+            }
+          },
+          {
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 0,
+          },
+        );
+      };
+      attempt(retries);
+    });
+  };
+
   useEffect(() => {
     let isActive = true;
     (async () => {
@@ -919,6 +982,51 @@ const Home: FC<ScreenProps.Home> = ({loading, dashboardList, navigation}) => {
       hideDashboardModules ? 'yes' : 'no',
     );
   }, [hideDashboardModules]);
+  // ✅ Fetch and save address once at Home start
+  useEffect(() => {
+    const fetchAndSaveInitialAddress = async () => {
+      try {
+        // ✅ Ensure permission first
+        const hasPermission = await Location.checkPermission();
+        if (!hasPermission) {
+          const granted = await Permissions.requestPermission();
+          if (!granted) {
+            __DEV__ &&
+              console.log('[Home] Permission denied, skipping location fetch');
+            return;
+          }
+        }
+
+        // ✅ Get address using your helper (it gets coords internally)
+        const geo =
+          (await Location.getAddressFromLatLong()) as DataType.GeoAddress;
+        console.log('[Home] updated geoLocation', geo);
+
+        if (geo?.lat && geo?.long) {
+          // Save to preferences
+          Preferences.setData(Preferences.KEY.LAST_GEO_ADDRESS, {
+            lat: geo.lat,
+            long: geo.long,
+            address: geo.address ?? '',
+          });
+
+          __DEV__ &&
+            console.log('[Home] initial address fetched:', geo.address);
+
+          // ✅ Trigger first post after address fetched
+          await postOnceIfDue('fg', dispatch);
+        } else {
+          __DEV__ && console.log('[Home] could not fetch valid coordinates');
+        }
+      } catch (err) {
+        __DEV__ && console.warn('[Home] initial address fetch error:', err);
+      }
+    };
+
+    // small delay for GPS initialization
+    const timer = setTimeout(fetchAndSaveInitialAddress, 1000);
+    return () => clearTimeout(timer);
+  }, [dispatch]);
 
   const appVersionName = DeviceInfo.getVersion();
   const appBuildNumber = DeviceInfo.getBuildNumber();
@@ -996,6 +1104,13 @@ const Home: FC<ScreenProps.Home> = ({loading, dashboardList, navigation}) => {
               }}
             />
           )}
+          {currentAddress ? (
+            <View style={{paddingHorizontal: 16, paddingVertical: 8}}>
+              <Text style={{color: COLORS.PRIMARY, fontSize: 14}}>
+                📍 {currentAddress}
+              </Text>
+            </View>
+          ) : null}
           <SyncOfflineDataSheet
             show={showSync}
             onSyncPress={() => syncOfflineData()}
