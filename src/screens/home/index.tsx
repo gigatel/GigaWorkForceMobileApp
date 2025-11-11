@@ -6,6 +6,7 @@ import {
   SyncOfflineDataSheet,
   UserNameDesigRow,
 } from '@molecules';
+import {BackHandler} from 'react-native';
 import {RootStackParamList} from '@navigation/navigator';
 import {Screen} from '@organisms';
 import Geolocation from '@react-native-community/geolocation';
@@ -755,6 +756,24 @@ const Home: FC<ScreenProps.Home> = ({loading, dashboardList, navigation}) => {
       dashboardList?.employeeDetails?.id,
       dispatch,
     ]),
+  );
+  useFocusEffect(
+    useCallback(() => {
+      const onBackPress = () => {
+        // ✅ Exit the app instead of going back
+        BackHandler.exitApp();
+        return true; // prevent default navigation
+      };
+
+      // Add event listener when this screen is focused
+      const backHandler = BackHandler.addEventListener(
+        'hardwareBackPress',
+        onBackPress,
+      );
+
+      // Remove listener on unfocus/unmount
+      return () => backHandler.remove();
+    }, []),
   );
 
   const syncOfflineData = async () => {

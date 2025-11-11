@@ -7,6 +7,7 @@ import {
   TextInput,
   FlatList,
   RefreshControl,
+  Platform,
 } from 'react-native';
 import {useNavigation} from '@react-navigation/native';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
@@ -403,9 +404,12 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.WHITE,
     borderRadius: 7,
     paddingHorizontal: 8,
-    paddingVertical: 5,
+    paddingVertical: Platform.OS === 'ios' ? 12 : 5,
   },
-  searchInput: {fontSize: SIZE.MS(13), color: COLORS.TEXT_DARK},
+  searchInput: {
+    fontSize: SIZE.MS(13),
+    color: COLORS.TEXT_DARK,
+  },
   dateBtn: {
     backgroundColor: COLORS.WHITE,
     paddingHorizontal: 8,

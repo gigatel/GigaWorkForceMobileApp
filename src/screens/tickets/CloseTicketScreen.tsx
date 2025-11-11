@@ -358,7 +358,7 @@ const CloseTicketScreen: React.FC<Props> = ({
         //   {text: 'OK', onPress: () => navigation.navigate('TicketsList')},
         // ]);
         Common.showToast('Ticket Closed  successfully.');
-        navigation.navigate('TicketsList');
+        navigation.replace('TicketsList');
       } else {
         Alert.alert('Error', res?.message || 'Failed to Close Ticket');
       }
@@ -380,7 +380,6 @@ const CloseTicketScreen: React.FC<Props> = ({
     empId,
     navigation,
   ]);
-
   // ---- Guard if opened without params ----
   if (!ticket) {
     return (

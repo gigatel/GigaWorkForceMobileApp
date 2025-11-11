@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-	<string>GTPL</string>
+	<string>Gigatrack</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -27,7 +27,7 @@
 	<key>LSApplicationQueriesSchemes</key>
 	<array>
 		<string>itms-services</string>
-        <string>itms-apps</string>
+		<string>itms-apps</string>
 		<string>tel</string>
 		<string>telprompt</string>
 		<string>whatsapp</string>
@@ -49,7 +49,7 @@
 				<key>NSIncludesSubdomains</key>
 				<true/>
 			</dict>
-			<key>prod.gigatel.me</key>
+			<key>tech1.gigatel.work</key>
 			<dict>
 				<key>NSExceptionAllowsInsecureHTTPLoads</key>
 				<true/>

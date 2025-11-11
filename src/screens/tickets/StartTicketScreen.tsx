@@ -333,7 +333,6 @@ const StartTicketScreen: React.FC<Props> = ({
         base64Preview: preview(b64, 80),
       });
     });
-
     try {
       setSubmitting(true);
       const img1 = toApiImage(photos[0]);
@@ -358,7 +357,7 @@ const StartTicketScreen: React.FC<Props> = ({
         //   {text: 'OK', onPress: () => navigation.navigate('TicketsList')},
         // ]);
         Common.showToast('Ticket Started  successfully.');
-        navigation.navigate('TicketsList');
+        navigation.replace('TicketsList');
       } else {
         Alert.alert('Error', res?.message || 'Failed to start ticket');
       }
@@ -380,8 +379,6 @@ const StartTicketScreen: React.FC<Props> = ({
     empId,
     navigation,
   ]);
-
-  // ---- Guard if opened without params ----
   if (!ticket) {
     return (
       <View
