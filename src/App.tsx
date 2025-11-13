@@ -3,12 +3,9 @@ import {NativeEventEmitter, NativeModules, Platform} from 'react-native';
 import {Provider} from 'react-redux';
 import {SafeAreaProvider} from 'react-native-safe-area-context';
 import {addEventListener as addNetListener} from '@react-native-community/netinfo';
-import messaging, {
-  getMessaging,
-  onMessage,
-  onNotificationOpenedApp,
-} from '@react-native-firebase/messaging';
+import messaging from '@react-native-firebase/messaging';
 import notifee from '@notifee/react-native';
+import {check, request, PERMISSIONS, RESULTS} from 'react-native-permissions'; // ✅ NEW import
 import RootNavigator from '@navigation/navigator';
 import {store} from './store/store';
 import './locales/i18n';
@@ -17,13 +14,9 @@ import {
   setupBackgroundServiceEvents,
   setupForegroundServiceEvents,
 } from './utils/locationService';
-
 import {updateGpsStatus, updateNetStatus} from '@slices/device.slice';
 import {Common, Location, Voice, Preferences} from '@utils';
-// ⬇️ NEW: import siren helpers
 import {ensureAllSirenChannel, displayWithSiren} from './utils/AllSiren';
-
-// (kept) your push service for token mgmt
 import notificationService from './services/notificationService';
 
 // ✅ Android-only: create the siren channel ASAP (no await at module scope)
@@ -31,11 +24,10 @@ if (Platform.OS === 'android') {
   ensureAllSirenChannel().catch(() => {});
 }
 
-// ✅ Optional: request permission & register for remote messages at module level (safe on iOS/Android)
+// ✅ Optional: request permission & register for remote messages
 const preparePushPermissions = async () => {
   try {
     await messaging().registerDeviceForRemoteMessages();
-
     const authStatus = await messaging().requestPermission();
     const enabled =
       authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
@@ -50,10 +42,9 @@ const preparePushPermissions = async () => {
 };
 preparePushPermissions().catch(() => {});
 
-// 🔔 Background handler must be outside a component.
+// 🔔 Background handler (MUST be outside component)
 messaging().setBackgroundMessageHandler(async remoteMessage => {
   try {
-    // ⬇️ CHANGED: always show with siren
     const n = remoteMessage?.notification || {};
     const d = remoteMessage?.data || {};
     await displayWithSiren({
@@ -61,7 +52,7 @@ messaging().setBackgroundMessageHandler(async remoteMessage => {
       body: n.body || (d as any)?.body,
       data: d,
     });
-  } catch (e) {
+  } catch {
     // no-op
   }
 });
@@ -74,9 +65,36 @@ const App = () => {
   const token = Preferences.getData('API_AUTH_TOKEN');
   Common.log?.('API_AUTH_TOKEN:', token);
 
+  // ✅ Safe, stable iOS location permission using react-native-permissions
+  useEffect(() => {
+    if (Platform.OS === 'ios') {
+      const requestIOSLocationPermission = async () => {
+        try {
+          const status = await check(PERMISSIONS.IOS.LOCATION_ALWAYS);
+          if (status === RESULTS.DENIED || status === RESULTS.LIMITED) {
+            const result = await request(PERMISSIONS.IOS.LOCATION_ALWAYS);
+            Common.log?.('iOS location permission result:', result);
+          } else {
+            Common.log?.('iOS location permission status:', status);
+          }
+        } catch (e) {
+          Common.error?.(
+            'iOS location permission error: ' + (e as Error).message,
+          );
+        }
+      };
+
+      // Delay to avoid race with Firebase/Notifee permissions
+      const timer = setTimeout(() => {
+        requestIOSLocationPermission();
+      }, 1500);
+      return () => clearTimeout(timer);
+    }
+  }, []);
+
+  // ---- Initialize Push Notification Services ----
   const initializeApp = async () => {
     try {
-      // Request notification permissions and get FCM token
       const fcmToken = await notificationService.requestPermissions();
       console.log('FCM Token:', fcmToken);
 
@@ -98,15 +116,18 @@ const App = () => {
     initializeApp();
   }, []);
 
+  // ---- Request notifee permissions ----
   useEffect(() => {
     (async () => {
-      await notifee.requestPermission({
-        provisional: false,
-      });
+      try {
+        await notifee.requestPermission({provisional: false});
+      } catch (e) {
+        Common.error?.('Notifee permission error: ' + (e as Error).message);
+      }
     })();
   }, []);
 
-  // Ensure siren channel on mount too (safe no-op on iOS)
+  // ---- Ensure siren channel on mount ----
   useEffect(() => {
     ensureAllSirenChannel().catch(() => {});
   }, []);
@@ -119,7 +140,6 @@ const App = () => {
 
     const initNotifications = async () => {
       try {
-        // Request permissions + token through your wrapper
         const fcmToken = await notificationService.requestPermissions();
         if (!fcmToken) {
           Common.warn?.('FCM token missing (permissions not granted?)');
@@ -128,31 +148,25 @@ const App = () => {
           await sendFCMTokenToBackend(fcmToken);
         }
 
-        // 🔁 Token refresh
         unsubscribeTokenRefresh = messaging().onTokenRefresh(async newToken => {
           Common.log?.('FCM Token (refresh):', newToken);
           await sendFCMTokenToBackend(newToken);
         });
 
-        // 💤 App opened from quit/cold state
         const initMsg = await messaging().getInitialNotification();
         if (initMsg) {
           Common.success?.('Opened from Quit State', initMsg);
-          // TODO: navigate based on initMsg.data if needed
         }
-        // ⏪ App opened from background by tapping notification
+
         unsubscribeOpened = messaging().onNotificationOpenedApp(
           remoteMessage => {
             Common.success?.('Opened from Background', remoteMessage);
-            // TODO: navigate based on remoteMessage.data if needed
           },
         );
 
-        // 🟢 App in foreground: show a siren local notification
         unsubscribeOnMessage = messaging().onMessage(async remoteMessage => {
           Common.success?.('Foreground FCM', remoteMessage);
           try {
-            // ⬇️ CHANGED: always show with siren
             const n = remoteMessage?.notification || {};
             const d = remoteMessage?.data || {};
             await displayWithSiren({
@@ -168,7 +182,9 @@ const App = () => {
         Common.error?.('initNotifications failed: ' + (e as Error).message);
       }
     };
+
     initNotifications();
+
     return () => {
       try {
         unsubscribeOnMessage?.();
@@ -267,6 +283,5 @@ export default App;
 
 // ----------------- helpers -----------------
 async function sendFCMTokenToBackend(token: string) {
-  // TODO: call your API to save token for the logged-in user/device
   Common.log?.('Sending FCM Token to Backend:', token);
 }

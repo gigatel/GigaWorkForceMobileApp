@@ -1,6 +1,9 @@
-export const BASE_URL ='http://mob.gigatel.me:60202/api/';//for login
-export const BASE_URL2 = 'http://mob.gigatel.me:60201/api/';//for location
-export const BASE_URL3 = 'http://mob.gigatel.me:60203/api/';// for tickets
+// export const BASE_URL ='http://mob.gigatel.me:60202/api/';//for login
+// export const BASE_URL2 = 'http://mob.gigatel.me:60201/api/';//for location
+// export const BASE_URL3 = 'http://mob.gigatel.me:60203/api/';// for tickets
+export const BASE_URL ='http://tech1.gigatel.work:60202/api/';//for login
+export const BASE_URL2 = 'http://tech1.gigatel.work:60201/api/';//for location
+export const BASE_URL3 = 'http://tech1.gigatel.work:60203/api/';// for tickets
 //Base_url prod
 //! Account
 export const getPwdEncription = BASE_URL + 'Account/GetPwdEncriptionKeyForUser';

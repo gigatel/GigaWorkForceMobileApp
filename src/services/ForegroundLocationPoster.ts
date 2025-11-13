@@ -5,7 +5,6 @@ import { startLocationWatch,stopLocationWatch } from '../../src/utils/location';
 let intervalId: ReturnType<typeof setInterval> | null = null;
 let started = false;
 const FG_INTERVAL_MS = 5_000; // 30s
-
 export function startForegroundPoster() {
   // if (intervalId) {
   //   __DEV__ && console.log('[FG Poster] already running');

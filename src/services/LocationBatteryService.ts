@@ -49,16 +49,22 @@ let fallbackInterval: IntervalHandle | null = null;
 
 function startFallbackLoop() {
   if (fallbackInterval) return;
+
   try { startBackgroundLocationWatcher(); } catch {}
+
+  // ✅ iOS में background में भी चलने के लिए keepAlive pattern
+  const LOOP_INTERVAL = Platform.OS === 'ios' ? 10_000 : SLEEP_MS; // iOS में थोड़ा लंबा interval रखो (10s)
   fallbackInterval = setInterval(async () => {
     try {
       await postOnceIfDue('bg', (dispatchRef ?? undefined) as any);
     } catch (e) {
       if (__DEV__) console.warn('[BG Fallback] postOnceIfDue error', e);
     }
-  }, SLEEP_MS);
-  __DEV__ && console.log('[BG Fallback] interval started @', SLEEP_MS, 'ms');
+  }, LOOP_INTERVAL);
+
+  __DEV__ && console.log(`[BG Fallback] interval started @${LOOP_INTERVAL}ms (${Platform.OS})`);
 }
+
 
 function stopFallbackLoop() {
   if (fallbackInterval) {

@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>GTPL.ipa</key>
+	<array>
+		<dict>
+			<key>architectures</key>
+			<array>
+				<string>arm64</string>
+			</array>
+			<key>buildNumber</key>
+			<string>2</string>
+			<key>certificate</key>
+			<dict>
+				<key>SHA1</key>
+				<string>D73DA138330B4F72337C9FD1A59D102B6D7A7256</string>
+				<key>dateExpires</key>
+				<string>23/04/26</string>
+				<key>type</key>
+				<string>Cloud Managed Apple Distribution</string>
+			</dict>
+			<key>embeddedBinaries</key>
+			<array>
+				<dict>
+					<key>architectures</key>
+					<array>
+						<string>arm64</string>
+					</array>
+					<key>buildNumber</key>
+					<string>0.12.0</string>
+					<key>certificate</key>
+					<dict>
+						<key>SHA1</key>
+						<string>D73DA138330B4F72337C9FD1A59D102B6D7A7256</string>
+						<key>dateExpires</key>
+						<string>23/04/26</string>
+						<key>type</key>
+						<string>Cloud Managed Apple Distribution</string>
+					</dict>
+					<key>name</key>
+					<string>hermes.framework</string>
+					<key>team</key>
+					<dict>
+						<key>id</key>
+						<string>BQVGC7576X</string>
+						<key>name</key>
+						<string>Raj Kumar Bhutani</string>
+					</dict>
+					<key>versionNumber</key>
+					<string>0.12.0</string>
+				</dict>
+			</array>
+			<key>entitlements</key>
+			<dict>
+				<key>application-identifier</key>
+				<string>BQVGC7576X.com.gigatrack</string>
+				<key>aps-environment</key>
+				<string>production</string>
+				<key>com.apple.developer.team-identifier</key>
+				<string>BQVGC7576X</string>
+				<key>get-task-allow</key>
+				<false/>
+			</dict>
+			<key>name</key>
+			<string>GTPL.app</string>
+			<key>profile</key>
+			<dict>
+				<key>UUID</key>
+				<string>22c1aaaa-f3e0-480a-8e78-39238deaac37</string>
+				<key>dateExpires</key>
+				<string>23/04/26</string>
+				<key>name</key>
+				<string>iOS Team Ad Hoc Provisioning Profile: com.gigatrack</string>
+			</dict>
+			<key>team</key>
+			<dict>
+				<key>id</key>
+				<string>BQVGC7576X</string>
+				<key>name</key>
+				<string>Raj Kumar Bhutani</string>
+			</dict>
+			<key>versionNumber</key>
+			<string>2.5</string>
+		</dict>
+	</array>
+</dict>
+</plist>

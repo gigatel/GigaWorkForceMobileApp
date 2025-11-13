@@ -13,6 +13,7 @@ import NetInfo from '@react-native-community/netinfo';
 import {useFocusEffect} from '@react-navigation/native';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {RootState, StoreDispatch} from '@reducers';
+// import {BackHandler} from 'react-native';
 import {COLORS, CONSTANT, FONTS, IMAGES, SIZE, STYLES} from '@res';
 // import {todayAttendanceApi} from '@slices/attendance.slice';
 import {dashboardListApi, getLoginTokenApi} from '@slices/dashboard.slice';
@@ -616,11 +617,9 @@ const Home: FC<ScreenProps.Home> = ({loading, dashboardList, navigation}) => {
       __DEV__ && console.warn('[Home] ensurePostingServices failed', e);
     }
   }, [dispatch]);
-
   useEffect(() => {
     void ensurePostingServices();
   }, [ensurePostingServices]);
-
   // Android APK installer events
   useEffect(() => {
     if (!NativeModules.ApkInstaller) return;
@@ -699,6 +698,24 @@ const Home: FC<ScreenProps.Home> = ({loading, dashboardList, navigation}) => {
       };
     }, [ensurePostingServices, dispatch]),
   );
+  // useFocusEffect(
+  //   useCallback(() => {
+  //     const onBackPress = () => {
+  //       // ✅ Exit the app instead of going back
+  //       BackHandler.exitApp();
+  //       return true; // prevent default navigation
+  //     };
+
+  //     // Add event listener when this screen is focused
+  //     const backHandler = BackHandler.addEventListener(
+  //       'hardwareBackPress',
+  //       onBackPress,
+  //     );
+
+  //     // Remove listener on unfocus/unmount
+  //     return () => backHandler.remove();
+  //   }, []),
+  // );
 
   // ✅ Restart services when app comes to foreground or background
   useEffect(() => {

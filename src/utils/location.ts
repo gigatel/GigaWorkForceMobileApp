@@ -91,7 +91,6 @@ export const startLocationWatch = () => {
       if (typeof lat !== 'number' || typeof long !== 'number') return;
       // Keep a fresh in-memory fix
       lastFix = { lat, long, ts: Date.now() };
-
       // Mirror to Preferences for backward compatibility
       try {
         const prev = (getData('LAST_GEO_ADDRESS') ?? {}) as any;
@@ -99,7 +98,6 @@ export const startLocationWatch = () => {
       } catch (e) {
         __DEV__ && console.warn('setData LAST_GEO_ADDRESS failed', e);
       }
-
       // Reverse geocode (best-effort; tolerate failures)
       let address = '';
       try {
@@ -209,7 +207,7 @@ export const watchGeoLocation = (): { id: number | null; stop: () => void } => {
           try {
             const prev = (getData('LAST_GEO_ADDRESS') ?? {}) as any;
             setData('LAST_GEO_ADDRESS', { ...prev, lat, long });
-          } catch {}
+          } catch { }
         }
       },
       err => {
