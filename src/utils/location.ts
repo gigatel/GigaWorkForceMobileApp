@@ -5,6 +5,7 @@ import { DataType } from '@types';
 import { Linking, Platform } from 'react-native';
 import { isLocationEnabled, promptForEnableLocationIfNeeded } from 'react-native-android-location-enabler';
 import Geocoder from 'react-native-geocoding';
+import { useState,useEffect } from 'react';
 import {
   check,
   checkMultiple,
@@ -99,7 +100,6 @@ export const startLocationWatch = () => {
       } catch (e) {
         __DEV__ && console.warn('setData LAST_GEO_ADDRESS failed', e);
       }
-
       // Reverse geocode (best-effort; tolerate failures)
       let address = '';
       try {

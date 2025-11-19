@@ -20,9 +20,15 @@ import {closeTicketFollowup} from '@slices/tickets.slice';
 import {useRoute, useNavigation} from '@react-navigation/native';
 import type {RouteProp} from '@react-navigation/native';
 import type {RootStackParamList} from '@navigation/navigator';
+import CheckBox from '@react-native-community/checkbox';
+import {useSelector} from 'react-redux';
+
 import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {Preferences, Location, Common} from '@utils';
 import type {DataType} from '@types';
+import {height} from 'src/utils/common';
+import RNPickerSelect from 'react-native-picker-select';
+import {getRFOListApi} from '@slices/tickets.slice';
 type Props = {
   onSubmit?: (payload: {
     location?: {lat?: number; lng?: number; address?: string};
@@ -50,6 +56,23 @@ const CloseTicketScreen: React.FC<Props> = ({
   // ---- Params ----
   const route = useRoute<StartTicketRouteProp>();
   const {ticket, assignTaskId: routeAssignTaskId, from} = route?.params ?? {};
+  const {rfoList, rfoLoading, rfoError} = useSelector(
+    (state: any) => state.tickets, // must match store key
+  );
+
+  const [toggleCheckBox, setToggleCheckBox] = useState(false);
+  const [selectedRFO, setSelectedRFO] = useState<number | null>(null);
+  const [status, setStatus] = useState(null); // "yes" or "no"
+  const [materialName, setMaterialName] = useState('');
+  // const rfoList = useSelector((state: any) => state.tickets?.rfoList ?? []);
+  // UPDATED — use correct API fields
+  const rfoPickerItems = useMemo(() => {
+    return (rfoList ?? []).map((item: any) => ({
+      label: item.name, // FIXED
+      value: item.id, // FIXED
+    }));
+  }, [rfoList]);
+
   const formatCutLocation = (loc?: string) => {
     if (!loc) return '—';
 
@@ -173,7 +196,14 @@ const CloseTicketScreen: React.FC<Props> = ({
       unsubscribe();
     };
   }, [fetchLocation, navigation]);
-
+  useEffect(() => {
+    dispatch(getRFOListApi());
+  }, [dispatch]);
+  useEffect(() => {
+    if (rfoError) {
+      Alert.alert('RFO Error', rfoError?.message ?? 'Failed to load RFO list');
+    }
+  }, [rfoError]);
   // ---- Image picking ----
   const logPickedImage = async (
     img: PickerImage,
@@ -301,7 +331,6 @@ const CloseTicketScreen: React.FC<Props> = ({
 
   // ---- Submit ----
   const handleStartTicket = useCallback(async () => {
-    // extra guard (button should already be enabled only when valid)
     if (!addressOk) {
       Alert.alert(
         'Missing address',
@@ -317,34 +346,35 @@ const CloseTicketScreen: React.FC<Props> = ({
       Alert.alert('Remarks required', 'Please enter at least 3 characters.');
       return;
     }
-    onSubmit?.({
-      location: {lat: lat ?? undefined, lng: lng ?? undefined, address},
-      photos,
-      remarks: remarks.trim(),
-    });
-    // debug logs
-    photos.forEach((p, i) => {
-      const anyP: any = p;
-      const b64 = anyP?.data as string | undefined;
-      console.log(`[SUBMIT] photo #${i + 1}`, {
-        path: p.path,
-        mime: anyP?.mime,
-        base64Len: b64?.length ?? 0,
-        base64Preview: preview(b64, 80),
-      });
-    });
+
+    // 🔥 RFO validation
+    if (!selectedRFO) {
+      Alert.alert('RFO Required', 'Please select an RFO.');
+      return;
+    }
+
+    // 🔥 IF status = YES validate material name
+    if (status === 'yes' && materialName.trim().length < 1) {
+      Alert.alert('Material Required', 'Please enter material name.');
+      return;
+    }
 
     try {
       setSubmitting(true);
+
       const img1 = toApiImage(photos[0]);
       const img2 = toApiImage(photos[1]);
+
       const latStr = lat != null ? String(lat) : '';
       const lngStr = lng != null ? String(lng) : '';
+
       const res = await dispatch(
         closeTicketFollowup({
           empId,
           assignTaskId: effectiveAssignTaskId,
           address,
+          rfoId: selectedRFO, // ⭐ Added
+          rfO_materialName: status === 'yes' ? materialName.trim() : '', // ⭐ Added
           remark: remarks.trim(),
           lat: latStr,
           lng: lngStr,
@@ -352,12 +382,11 @@ const CloseTicketScreen: React.FC<Props> = ({
           image2: img2,
         }),
       ).unwrap();
+
       console.log('[FOLLOWUP RESPONSE]', res);
+
       if (res?.success) {
-        // Alert.alert('Success', 'Follow-up submitted successfully.', [
-        //   {text: 'OK', onPress: () => navigation.navigate('TicketsList')},
-        // ]);
-        Common.showToast('Ticket Closed  successfully.');
+        Common.showToast('Ticket Closed successfully.');
         navigation.replace('TicketsList');
       } else {
         Alert.alert('Error', res?.message || 'Failed to Close Ticket');
@@ -372,7 +401,9 @@ const CloseTicketScreen: React.FC<Props> = ({
     addressOk,
     photos,
     remarks,
-    onSubmit,
+    selectedRFO,
+    status,
+    materialName,
     lat,
     lng,
     dispatch,
@@ -380,6 +411,7 @@ const CloseTicketScreen: React.FC<Props> = ({
     empId,
     navigation,
   ]);
+
   // ---- Guard if opened without params ----
   if (!ticket) {
     return (
@@ -443,6 +475,29 @@ const CloseTicketScreen: React.FC<Props> = ({
             {ticket.address || '—'}
           </Text>
         </View>
+
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Select RFO</Text>
+
+          {rfoLoading && (
+            <Text style={{color: COLORS.PRIMARY}}>Loading RFO list…</Text>
+          )}
+
+          <RNPickerSelect
+            onValueChange={value => setSelectedRFO(value)}
+            items={rfoPickerItems}
+            value={selectedRFO}
+            placeholder={{label: 'Select RFO…', value: null}}
+            useNativeAndroidPickerStyle={false}
+            style={{
+              inputIOS: styles.pickerInput,
+              inputAndroid: styles.pickerInput,
+            }}
+          />
+        </View>
+        {/* --------------------- END RFO SECTION --------------------- */}
+
+        {/* Rest UI (address, photos, checkbox, remarks, submit) remains SAME */}
         {/* Current Address */}
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Current Address</Text>
@@ -481,7 +536,6 @@ const CloseTicketScreen: React.FC<Props> = ({
             </TouchableOpacity>
           </View>
         </View>
-
         {/* Photos (2) */}
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Add Pictures (2)</Text>
@@ -514,7 +568,55 @@ const CloseTicketScreen: React.FC<Props> = ({
             <Text style={styles.helperText}>Add exactly 2 photos</Text>
           )}
         </View>
+        <Text style={styles.checkTxtBox}>Select one checkbox*</Text>
+        <View
+          style={{
+            flexDirection: 'row',
+            marginLeft: SIZE.MS(10),
+          }}>
+          <View style={{flexDirection: 'row', alignItems: 'center'}}>
+            <CheckBox
+              disabled={false}
+              value={status === 'yes'}
+              onValueChange={() => {
+                setStatus(status === 'yes' ? null : 'yes');
+              }}
+            />
+            <Text style={{marginLeft: 8}}>YES</Text>
+          </View>
 
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              marginLeft: 25,
+            }}>
+            <CheckBox
+              disabled={false}
+              value={status === 'no'}
+              onValueChange={() => {
+                setStatus(status === 'no' ? null : 'no');
+              }}
+            />
+            <Text style={{marginLeft: 8}}>NO</Text>
+          </View>
+        </View>
+
+        {status === 'yes' && (
+          <View style={styles.card}>
+            <Text style={styles.sectionTitle}>Material Name</Text>
+            <TextInput
+              value={materialName}
+              onChangeText={setMaterialName}
+              placeholder="Enter material name…"
+              placeholderTextColor={COLORS.TEXT_MEDIUM}
+              style={styles.materialText}
+            />
+            <Text style={styles.countText}>
+              {materialName.trim().length}/200
+            </Text>
+          </View>
+        )}
         {/* Remarks */}
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Remarks</Text>
@@ -530,7 +632,6 @@ const CloseTicketScreen: React.FC<Props> = ({
           />
           <Text style={styles.countText}>{remarks.trim().length}/500</Text>
         </View>
-
         {/* Start */}
         <View style={styles.footer}>
           <TouchableOpacity
@@ -666,15 +767,23 @@ const styles = StyleSheet.create({
     fontSize: SIZE.MS(11),
     marginTop: SIZE.MVS(4),
   },
-
   helperText: {
     marginTop: SIZE.MVS(8),
     color: COLORS.TEXT_MEDIUM,
     fontSize: SIZE.MS(11),
   },
-
   remarksInput: {
     minHeight: SIZE.MVS(100),
+    borderWidth: 1,
+    borderColor: COLORS.BORDER_DEFAULT,
+    borderRadius: SIZE.MS(8),
+    padding: SIZE.MS(10),
+    fontSize: SIZE.MS(13),
+    color: COLORS.TEXT_DARKER,
+    backgroundColor: COLORS.BACKGROUND_SECONDARY,
+  },
+  materialText: {
+    minHeight: SIZE.MVS(40),
     borderWidth: 1,
     borderColor: COLORS.BORDER_DEFAULT,
     borderRadius: SIZE.MS(8),
@@ -689,7 +798,6 @@ const styles = StyleSheet.create({
     fontSize: SIZE.MS(11),
     textAlign: 'right',
   },
-
   footer: {marginHorizontal: SIZE.MS(14), marginTop: SIZE.MVS(16)},
   startBtn: {
     backgroundColor: COLORS.SUCCESS,
@@ -702,5 +810,18 @@ const styles = StyleSheet.create({
     fontSize: SIZE.MS(14),
     fontWeight: '800',
     letterSpacing: 0.5,
+  },
+  checkTxtBox: {
+    marginLeft: SIZE.MS(15),
+    marginTop: SIZE.MVS(12),
+    color: 'red',
+    fontSize: SIZE.MS(12),
+  },
+  pickerInput: {
+    padding: 14,
+    borderWidth: 1,
+    borderColor: COLORS.BORDER_DEFAULT,
+    borderRadius: 8,
+    color: COLORS.TEXT_DARKER,
   },
 });

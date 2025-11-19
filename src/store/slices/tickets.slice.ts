@@ -12,6 +12,19 @@ export interface ApiError {
   message?: string;
   data?: any;
 }
+export interface RFOEmployee {
+  id: number;
+  name: string;
+  isActive: boolean;
+  organizationId: number;
+}
+export interface ApiListResponse<T> {
+  status: number;
+  success: boolean;
+  message?: string;
+  data: T[];
+}
+
 
 export type GetComplaintsBody = {
   empId: number;
@@ -41,6 +54,8 @@ export type CloseFollowupBody = {
   lng: string;              // (required) store as string to keep exact format
   image1?: FollowupImage;   // (optional) base64 + ext
   image2?: FollowupImage;   // (optional)
+  rfoId: string;
+  rfO_materialName: string;
 };
 
 // Minimal followup item shape (adjust fields as your API returns)
@@ -63,14 +78,19 @@ type TicketState = {
   lastPayload: GetComplaintsBody | null;
   lastFetchedAt: number | null;
 
-  // NEW: cache details by id
   detailById: Record<string, TicketItem | undefined>;
   followupsByAssignTaskId: Record<string, FollowupItem[] | undefined>;
   followupsLoadingByAssignTaskId: Record<string, boolean | undefined>;
   followupsErrorByAssignTaskId: Record<string, string | null | undefined>;
   creatingFollowup: 'idle' | 'pending';
   createFollowupError: string | null;
+
+  // ADD THESE 3 FIELDS
+  rfoList: { id: number; name: string; isActive: boolean; organizationId: number }[];
+  rfoLoading: boolean;
+  rfoError: any;
 };
+
 
 const initialState: TicketState = {
   loading: 'idle',
@@ -78,6 +98,7 @@ const initialState: TicketState = {
   items: [],
   lastPayload: null,
   lastFetchedAt: null,
+
   detailById: {},
   followupsByAssignTaskId: {},
   followupsLoadingByAssignTaskId: {},
@@ -85,7 +106,11 @@ const initialState: TicketState = {
   creatingFollowup: 'idle',
   createFollowupError: null,
 
+  rfoList: [],
+  rfoLoading: false,
+  rfoError: null,
 };
+
 
 /** ---- Helpers ---- */
 const toIsoString = (d: string | Date): string => (typeof d === 'string' ? d : d.toISOString());
@@ -263,6 +288,7 @@ export const createTicketFollowup = createAsyncThunk<
         ...(args.image2 ? { image2: args.image2 } : {}),
       };
       console.log('CreateFollowupBodyData:',{body});
+      return;
       const res: { status?: number; success?: boolean; message?: string; data?: any } =
         await APIs.postRequestWithJson({
           path:  `${URLs.followUpComplaint}`,
@@ -290,15 +316,15 @@ export const createTicketFollowup = createAsyncThunk<
   }
 );
 export const closeTicketFollowup = createAsyncThunk<
-  // Return type (keep generic; your API seems to return {status,success,message,data?})
   { status?: number; success?: boolean; message?: string; data?: any } | undefined,
-  // Args coming from StartTicketScreen (empId auto-fills if omitted)
   Partial<CloseFollowupBody> & {
     assignTaskId: number;
     address: string;
     remark: string;
     lat: string;
     lng: string;
+    rfoId?: number;               // ⭐ ADDED
+    rfO_materialName?: string;    // ⭐ ADDED
   },
   { rejectValue: ApiError }
 >(
@@ -313,28 +339,36 @@ export const closeTicketFollowup = createAsyncThunk<
       if (!empId || Number.isNaN(empId)) {
         return rejectWithValue({ message: 'Missing empId (Preferences or arg)' });
       }
-       const body: CloseFollowupBody = {
+
+      // ⭐ FINAL BODY (RFO added)
+      const body: CloseFollowupBody = {
         assignTaskId: args.assignTaskId,
         address: args.address,
         remark: args.remark,
         empId,
         lat: args.lat,
         lng: args.lng,
+        rfoId: args.rfoId ?? 0, // ⭐ ADD
+        rfO_materialName: args.rfO_materialName ?? '', // ⭐ ADD
         ...(args.image1 ? { image1: args.image1 } : {}),
         ...(args.image2 ? { image2: args.image2 } : {}),
       };
-      console.log('CloseFollowupBodyData:',{body});
-      const res: { status?: number; success?: boolean; message?: string; data?: any } =
-        await APIs.postRequestWithJson({
-          path:  `${URLs.removefollowUpComplaint}`,
-          params: body,
-          isAuth: true,
-        });
-      if (!res) return rejectWithValue({ message: 'Server not responding' });
+
+      console.log('CloseFollowupBodyData:', body);
+
+      const res = await APIs.postRequestWithJson({
+        path: `${URLs.removefollowUpComplaint}`,
+        params: body,
+        isAuth: true,
+      });
+
+      if (!res)
+        return rejectWithValue({ message: 'Server not responding' });
+
       if (Number(res.status) !== 200 || res.success === false) {
         return rejectWithValue({
           status: res?.status,
-          message: res?.message || 'Failed to create follow-up',
+          message: res?.message || 'Failed to Close Ticket',
           data: res?.data,
           success: false,
         });
@@ -350,6 +384,50 @@ export const closeTicketFollowup = createAsyncThunk<
     }
   }
 );
+export const getRFOListApi = createAsyncThunk<
+  RFOEmployee[],    
+  void,             
+  { rejectValue: ApiError }
+>(
+  `tickets/RFO/GetRFOList`,
+  async (_, thunkApi) => {
+    try {
+      const res: ApiListResponse<RFOEmployee> =
+        await APIs.getRequestWithQuery({
+          path: URLs.getRFOList,
+          params: '',
+          isAuth: true,
+        });
+
+      // SUCCESS
+      if (res.status === 200 && res.success && Array.isArray(res.data)) {
+        // Return EXACT same API data (no sorting, no modifying)
+        return res.data.map(item => ({
+          id: item.id,
+          name: item.name,
+          isActive: item.isActive,
+          organizationId: item.organizationId,
+        }));
+      }
+
+      return thunkApi.rejectWithValue({
+        status: res.status,
+        message: res.message ?? 'Failed to fetch RFO list',
+        data: res.data ?? null,
+      });
+
+    } catch (error: any) {
+      return thunkApi.rejectWithValue({
+        status: error?.status ?? error?.response?.status,
+        message: error?.message ?? 'Unexpected error',
+        data: error?.data ?? null,
+      });
+    }
+  }
+);
+
+
+
 
 
 
@@ -404,7 +482,20 @@ const ticketSlice = createSlice({
       .addCase(getEmpComplaintDetails.rejected, (state, action: any) => {
         state.loading = 'idle';
         state.error = action.payload?.message || 'Failed to fetch ticket';
+      })
+      .addCase(getRFOListApi.pending, (state) => {
+        state.rfoLoading = true;
+        state.rfoError = null;
+      })
+      .addCase(getRFOListApi.fulfilled, (state, action) => {
+        state.rfoLoading = false;
+        state.rfoList = action.payload;        // id, name, isActive, organizationId
+      })
+      .addCase(getRFOListApi.rejected, (state, action) => {
+        state.rfoLoading = false;
+        state.rfoError = action.payload;
       });
+      
   },
 });
 

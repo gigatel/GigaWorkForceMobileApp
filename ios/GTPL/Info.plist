@@ -61,11 +61,13 @@
 	<key>NSCameraUsageDescription</key>
 	<string>Need to access the Camera for taking the picture for attadence, duty task and Chambers.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>GTPL need to access your location to submit daily tasks.</string>
+	<string>Gigatrack need to access your location to submit daily tasks.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>GTPL need to access your location to submit daily tasks.</string>
+	<string>Gigatrack need to access your location to submit daily tasks.</string>
+  <key>NSLocationAlwaysUsageDescription</key>
+  <string>This app uses your location to provide accurate services.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Need to access the Camera for taking the picture for attadence, duty task and Chambers.</string>
+	<string>Need to access the Camera for taking the picture for attendance, duty task and Chambers.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>Need to access the Photo Library for saving the images.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
@@ -84,6 +86,7 @@
 	<array>
 		<string>location</string>
 		<string>remote-notification</string>
+		<string>fetch</string>
 	</array>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
