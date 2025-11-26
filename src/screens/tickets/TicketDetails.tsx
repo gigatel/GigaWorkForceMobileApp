@@ -14,7 +14,6 @@ import {
   Platform,
 } from 'react-native';
 import {useDispatch, useSelector} from 'react-redux';
-
 import {COLORS, SIZE} from '@res';
 import {RootStackParamList} from '@navigation/navigator';
 import {
@@ -22,26 +21,20 @@ import {
   selectTicketDetailById,
   selectTicketDetailError,
   selectTicketDetailLoading,
+  acknowledgeApi,
+  travelStartApi,
 } from '@slices/tickets.slice';
 import type {StoreDispatch, RootState} from '@reducers';
 import type {TicketDetailsData} from '../../types/ticket.types';
 import {Common} from '@utils';
-/** ---------------- Types ---------------- */
+/* ---------------- Types ---------------- */
 type TicketDetailsRouteProp = RouteProp<RootStackParamList, 'TicketDetails'>;
 type TicketDetailsNavigationProp = NativeStackNavigationProp<
   RootStackParamList,
   'TicketDetails'
 >;
-
 type Priority = 'high' | 'medium' | 'low';
-
-/** ---------------- Utils (robust key mapping) ---------------- */
-const toNumOrNull = (v: any): number | null => {
-  const n =
-    typeof v === 'string' ? parseFloat(v) : typeof v === 'number' ? v : NaN;
-  return Number.isFinite(n) ? n : null;
-};
-
+/* ---------------- Utils ---------------- */
 const pick = <K extends string>(
   obj: any,
   keys: readonly K[],
@@ -52,8 +45,6 @@ const pick = <K extends string>(
   }
   return fallback;
 };
-
-/** Parse "lat,lng" into numbers */
 const parseLatLng = (s?: string | null): {lat: number; lng: number} | null => {
   if (!s) return null;
   const [a, b] = String(s)
@@ -64,10 +55,8 @@ const parseLatLng = (s?: string | null): {lat: number; lng: number} | null => {
   const lng = parseFloat(b);
   return Number.isFinite(lat) && Number.isFinite(lng) ? {lat, lng} : null;
 };
-/** Normalize whatever the backend returns into our UI shape */
 function normalizeApiItem(item: any): TicketDetailsData {
-  const parsed = parseLatLng(item?.latLng ?? item?.cutLocation); // try both keys
-  console.log('tciketDetailsDataAPiItem:', {item});
+  const parsed = parseLatLng(item?.latLng ?? item?.cutLocation);
   return {
     id: item.id,
     LinkId: item.complaintCode,
@@ -80,7 +69,7 @@ function normalizeApiItem(item: any): TicketDetailsData {
     assignId: item.assignTaskId,
     natureOfFault: item.alarmType,
     nearestChamber: '',
-    cutLocation: item.latLng ?? item.cutLocation ?? '', // source of truth for directions if coords missing
+    cutLocation: item.latLng ?? item.cutLocation ?? '',
     cutLat: parsed?.lat ?? null,
     cutLng: parsed?.lng ?? null,
     totalDistanceKm: item.totalDistance,
@@ -113,63 +102,59 @@ function normalizeApiItem(item: any): TicketDetailsData {
     ),
   };
 }
-
+/* ---------------- Component ---------------- */
 const TicketDetailsScreen: React.FC = () => {
   const dispatch = useDispatch<StoreDispatch>();
   const route = useRoute<TicketDetailsRouteProp>();
   const navigation = useNavigation<TicketDetailsNavigationProp>();
   const {ticketId} = route.params;
-
-  // address state
+  // tabs
+  const [activeTab, setActiveTab] = useState<
+    'TICKET_DETAILS' | 'CONTACT_DETAILS'
+  >('TICKET_DETAILS');
   const [address, setAddress] = useState<string>('Fetching address...');
-
+  const addrCacheRef = useRef<Map<string, string>>(new Map());
+  // redux selectors
   const reduxDetail = useSelector((s: RootState) =>
     selectTicketDetailById(s, ticketId),
   );
-
   const loading = useSelector(selectTicketDetailLoading);
   const error = useSelector(selectTicketDetailError);
-
-  // Local state fed from API res.item (normalized)
+  // local ticket state
   const [ticketDetails, setTicketDetails] = useState<TicketDetailsData | null>(
     null,
   );
+  const [travelStartTime, setTravelStartTime] = useState<Date | null>(null);
+  const [travelTimer, setTravelTimer] = useState('00:00:00');
 
-  // simple in-memory cache to avoid duplicate lookups within app session
-  const addrCacheRef = useRef<Map<string, string>>(new Map());
+  const [travelElapsed, setTravelElapsed] = useState('00:00:00');
+  /* -------- reverse geocode helper (no hooks inside conditions) -------- */
+  // Call this function after API success
+  const processStatusList = (statusList: any[]) => {
+    if (!statusList) return;
 
-  /**
-   * Robust reverse-geocode via OpenStreetMap Nominatim (free)
-   * IMPORTANT: Nominatim requires identifying your app/user-agent.
-   * Replace the contact/email with your real support email if you want.
-   */
+    const startStatus = statusList.find(s => s.status === 'Start');
+
+    if (startStatus?.statusUpdatedOn) {
+      console.log('⏳ Travel Start Time Found:', startStatus.statusUpdatedOn);
+      setTravelStartTime(new Date(startStatus.statusUpdatedOn));
+    }
+  };
+
   const getAddressFromLatLng = useCallback(
     async (lat: number, lng: number): Promise<string> => {
       try {
         const key = `${lat.toFixed(6)},${lng.toFixed(6)}`;
         const cached = addrCacheRef.current.get(key);
-        if (cached) {
-          return cached;
-        }
-
-        // Build URL with addressdetails=0 to keep response smaller; you can set addressdetails=1 if you want components.
-        const url = `https://nominatim.openstreetmap.org/reverse?lat=${encodeURIComponent(
-          String(lat),
-        )}&lon=${encodeURIComponent(String(lng))}&format=json&addressdetails=0`;
-
-        const headers: Record<string, string> = {
-          // Nominatim requires a valid user-agent; include contact if you have one
-          'User-Agent': 'GigaTelApp/1.0 (support@gigatel.in)',
-          Accept: 'application/json',
-        };
-
-        const res = await fetch(url, {headers});
+        if (cached) return cached;
+        const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=0`;
+        const res = await fetch(url, {
+          headers: {
+            'User-Agent': 'GigaTelApp/1.0 (support@gigatel.in)',
+            Accept: 'application/json',
+          },
+        });
         if (!res.ok) {
-          console.warn(
-            '[Nominatim] non-ok response',
-            res.status,
-            await res.text().catch(() => '<no-body>'),
-          );
           return 'Address not found';
         }
         const data: any = await res.json();
@@ -177,96 +162,178 @@ const TicketDetailsScreen: React.FC = () => {
         const out = display || 'Address not found';
         addrCacheRef.current.set(key, out);
         return out;
-      } catch (err) {
-        console.error('Error fetching address (nominatim):', err);
+      } catch {
         return 'Unable to fetch address';
       }
     },
     [],
   );
-
-  const [activeTab, setActiveTab] = useState<
-    'TICKET_DETAILS' | 'CONTACT_DETAILS'
-  >('TICKET_DETAILS');
-
+  /* ---------------- refetch (API) ---------------- */
   const refetch = useCallback(() => {
-    if (!ticketId) return;
     dispatch(getEmpComplaintDetails({id: ticketId, refresh: true}))
       .unwrap()
       .then((res: any) => {
-        // IMPORTANT: take data from res.item
-        const normalized = normalizeApiItem(res?.item ?? {});
+        const formData = res?.item?.formData;
+        const statusList = res?.item?.statusList;
+
+        // ⭐ FIX — Start status से SLA time set करो
+        if (statusList && Array.isArray(statusList)) {
+          processStatusList(statusList);
+        }
+
+        // normalize
+        const normalized = normalizeApiItem(formData ?? {});
         setTicketDetails(normalized);
       })
-      .catch(() => {
-        // leave error to redux selector
-      });
+      .catch(() => {});
   }, [dispatch, ticketId]);
 
-  // Fetch on mount / id change
+  /* ---------------- Effects (ALWAYS before any return) ---------------- */
+
+  // on mount / id change
   useEffect(() => {
     refetch();
   }, [refetch]);
+  // Timer Logic
+  useEffect(() => {
+    let interval: any;
 
-  // Also accept redux detail updates (e.g., from cache or another screen)
+    if (travelStartTime) {
+      interval = setInterval(() => {
+        const now = new Date();
+        const diff = now.getTime() - travelStartTime.getTime();
+
+        const hours = Math.floor(diff / (1000 * 60 * 60));
+        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+        setTravelTimer(
+          `${hours.toString().padStart(2, '0')}:` +
+            `${minutes.toString().padStart(2, '0')}:` +
+            `${seconds.toString().padStart(2, '0')}`,
+        );
+      }, 1000);
+    }
+
+    return () => clearInterval(interval);
+  }, [travelStartTime]);
+
+  // redux detail से sync
   useEffect(() => {
     if (reduxDetail && typeof reduxDetail === 'object') {
       setTicketDetails(normalizeApiItem(reduxDetail));
     }
   }, [reduxDetail]);
 
-  // When coordinates available, fetch address
+  // address resolve
   useEffect(() => {
     let cancelled = false;
+    const run = async () => {
+      if (!ticketDetails) {
+        setAddress('No coordinates available');
+        return;
+      }
+      let lat = ticketDetails.cutLat;
+      let lng = ticketDetails.cutLng;
 
-    const doFetch = async () => {
-      const lat = ticketDetails?.cutLat;
-      const lng = ticketDetails?.cutLng;
-
-      // If direct numeric coords not available, try parsing cutLocation
-      let finalLat = lat;
-      let finalLng = lng;
-      if (
-        (finalLat == null || finalLng == null) &&
-        ticketDetails?.cutLocation
-      ) {
+      if ((lat == null || lng == null) && ticketDetails.cutLocation) {
         const parsed = parseLatLng(ticketDetails.cutLocation);
         if (parsed) {
-          finalLat = parsed.lat;
-          finalLng = parsed.lng;
+          lat = parsed.lat;
+          lng = parsed.lng;
         }
       }
-
-      // guard: need finite numbers (allow 0)
       if (
-        finalLat != null &&
-        finalLng != null &&
-        Number.isFinite(finalLat) &&
-        Number.isFinite(finalLng)
+        lat != null &&
+        lng != null &&
+        Number.isFinite(lat) &&
+        Number.isFinite(lng)
       ) {
         setAddress('Fetching address...');
-        try {
-          const addr = await getAddressFromLatLng(finalLat, finalLng);
-          if (!cancelled) setAddress(addr);
-        } catch {
-          if (!cancelled) setAddress('Unable to fetch address');
-        }
+        const addr = await getAddressFromLatLng(lat, lng);
+        if (!cancelled) setAddress(addr);
       } else {
-        setAddress('No coordinates available');
+        if (!cancelled) setAddress('No coordinates available');
       }
     };
-
-    doFetch();
-
+    run();
     return () => {
       cancelled = true;
     };
+  }, [ticketDetails, getAddressFromLatLng]);
+
+  /* ---------------- Derived values (no hooks below this) ---------------- */
+
+  const status = (ticketDetails?.status || '').toLowerCase().trim();
+
+  const showAck = status === 'assigned';
+  const showTravelStart = status === 'acknowledge';
+  const showActivityStart =
+    status === 'travel started' || status === 'in progress';
+  const disableClose = [
+    'closed',
+    'task complete',
+    'closed by splicer',
+  ].includes(status);
+
+  const coords = useMemo(() => {
+    if (
+      ticketDetails?.cutLat != null &&
+      ticketDetails?.cutLng != null &&
+      Number.isFinite(ticketDetails.cutLat) &&
+      Number.isFinite(ticketDetails.cutLng)
+    ) {
+      return {
+        lat: ticketDetails.cutLat as number,
+        lng: ticketDetails.cutLng as number,
+      };
+    }
+    return parseLatLng(ticketDetails?.cutLocation || null);
   }, [
     ticketDetails?.cutLat,
     ticketDetails?.cutLng,
     ticketDetails?.cutLocation,
-    getAddressFromLatLng,
   ]);
+
+  const getStatusColor = (s: string) =>
+    ({
+      assigned: COLORS.WARNING,
+      started: COLORS.PRIMARY,
+      completed: COLORS.SUCCESS,
+    }[s?.toLowerCase()] ?? COLORS.TEXT_MEDIUM);
+
+  const getCutQuery = (): string => {
+    const txt = (ticketDetails?.cutLocation || '').trim();
+    if (txt && !parseLatLng(txt)) return txt;
+    return ticketDetails?.linkName || 'Location';
+  };
+
+  const safeOpen = async (url: string) => {
+    try {
+      await Linking.openURL(url);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const openDirections = async () => {
+    const label = getCutQuery();
+    const p = coords;
+
+    if (!p) {
+      await safeOpen(
+        `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+          label,
+        )}`,
+      );
+      return;
+    }
+
+    await safeOpen(
+      `https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lng}&travelmode=driving`,
+    );
+  };
 
   const formatDate = (dateStr: string): string => {
     if (!dateStr) return '';
@@ -296,296 +363,89 @@ const TicketDetailsScreen: React.FC = () => {
     }
   };
 
-  // TicketDetailsScreen.tsx
+  /* ---------------- Handlers (no hooks inside) ---------------- */
+
   const handleStart = () => {
-    if (!ticketDetails) {
-      console.warn('[handleStart] no ticketDetails yet');
-      return;
-    }
-
-    // strip any non-serializable stuff just in case
+    if (!ticketDetails) return;
     const payload = JSON.parse(JSON.stringify(ticketDetails));
-
-    console.log('[TicketDetails -> navigate] sending:', {
-      LinkId: payload.LinkId,
-      linkName: payload.linkName,
-      cutLocation: payload.cutLocation,
-      cutLat: payload.cutLat,
-      cutLng: payload.cutLng,
-      assignID: payload.assignId,
-    });
-
     navigation.navigate('StartTicketScreen', {
       from: 'ticket-details',
       ticket: payload,
     });
   };
-  const handleUpdate = () => {};
+
+  const handleTravelStart = () => {
+    if (!ticketDetails) return;
+
+    dispatch(
+      travelStartApi({
+        assignTaskId: ticketDetails.assignId,
+      }),
+    )
+      .unwrap()
+      .then(() => {
+        Common.showToast('Travel started!');
+        setTravelStartTime(Date.now()); // ⬅️ TIMER START HERE
+        refetch();
+      })
+      .catch(err => Common.showToast(err?.message ?? 'Travel start failed!'));
+  };
+
+  const handleAcknowledge = () => {
+    if (!ticketDetails) return;
+    dispatch(
+      acknowledgeApi({
+        assignTaskId: ticketDetails.assignId,
+        status: 'Acknowledge',
+      }),
+    )
+      .unwrap()
+      .then(() => {
+        Common.showToast('Ticket acknowledged successfully!');
+        refetch();
+      })
+      .catch(err => Common.showToast(err?.message ?? 'Acknowledge failed!'));
+  };
   const handleClose = () => {
-    if (!ticketDetails) {
-      console.warn('[handleStart] no ticketDetails yet');
-      return;
-    }
-
-    // strip any non-serializable stuff just in case
+    if (!ticketDetails) return;
     const payload = JSON.parse(JSON.stringify(ticketDetails));
-
-    console.log('[TicketDetails -> navigate] sending:', {
-      LinkId: payload.LinkId,
-      linkName: payload.linkName,
-      cutLocation: payload.cutLocation,
-      cutLat: payload.cutLat,
-      cutLng: payload.cutLng,
-      assignID: payload.assignId,
-    });
-
     navigation.navigate('CloseTicketScreen', {
       from: 'ticket-details',
       ticket: payload,
     });
   };
-  const getPriorityColor = (p: string) =>
-    ({high: COLORS.ERROR, medium: COLORS.WARNING, low: COLORS.SUCCESS}[
-      p?.toLowerCase()
-    ] ?? COLORS.TEXT_MEDIUM);
-  const getStatusColor = (s: string) =>
-    ({
-      assigned: COLORS.WARNING,
-      started: COLORS.PRIMARY,
-      completed: COLORS.SUCCESS,
-    }[s?.toLowerCase()] ?? COLORS.TEXT_MEDIUM);
 
-  /** ====== MAP HELPERS ======
-   * Derive coords from cutLat/cutLng, else fallback to item.latLng
-   */
-  const coords = useMemo(() => {
-    if (
-      Number.isFinite(ticketDetails?.cutLat as any) &&
-      Number.isFinite(ticketDetails?.cutLng as any)
-    ) {
-      return {
-        lat: ticketDetails!.cutLat as number,
-        lng: ticketDetails!.cutLng as number,
-      };
-    }
-    return parseLatLng(ticketDetails?.cutLocation || null);
-  }, [
-    ticketDetails?.cutLat,
-    ticketDetails?.cutLng,
-    ticketDetails?.cutLocation,
-  ]);
+  /* ---------------- EARLY RETURNS (AFTER ALL HOOKS!) ---------------- */
 
-  const hasCoords = !!coords;
-
-  // Return a reasonable search label when only text is available
-  const getCutQuery = (): string => {
-    const txt = (ticketDetails?.cutLocation || '').trim();
-    if (txt && !parseLatLng(txt)) return txt; // not a pure "lat,lng" -> good as query
-    return ticketDetails?.linkName || 'Location';
-  };
-
-  const safeOpen = async (url: string) => {
-    try {
-      await Linking.openURL(url);
-      return true;
-    } catch {
-      return false;
-    }
-  };
-
-  const openMapCenter = async (
-    lat?: number | null,
-    lng?: number | null,
-    label?: string,
-  ) => {
-    const name = label || 'Location';
-    if (Platform.OS === 'ios') {
-      const canOpenGoogle = await Linking.canOpenURL('comgooglemaps://');
-      if (lat != null && lng != null) {
-        if (canOpenGoogle) {
-          if (
-            await safeOpen(
-              `comgooglemaps://?q=${lat},${lng}&center=${lat},${lng}&zoom=16`,
-            )
-          )
-            return;
-        }
-        if (
-          await safeOpen(
-            `http://maps.apple.com/?ll=${lat},${lng}&q=${encodeURIComponent(
-              name,
-            )}`,
-          )
-        )
-          return;
-        await safeOpen(
-          `https://www.google.com/maps/@?api=1&map_action=map&center=${lat},${lng}&zoom=16`,
-        );
-        return;
-      }
-      if (canOpenGoogle) {
-        if (await safeOpen(`comgooglemaps://?q=${encodeURIComponent(name)}`))
-          return;
-      }
-      if (
-        await safeOpen(`http://maps.apple.com/?q=${encodeURIComponent(name)}`)
-      )
-        return;
-      await safeOpen(
-        `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-          name,
-        )}`,
-      );
-      return;
-    }
-
-    if (lat != null && lng != null) {
-      await safeOpen(
-        `https://www.google.com/maps/@?api=1&map_action=map&center=${lat},${lng}&zoom=16`,
-      );
-    } else {
-      await safeOpen(
-        `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-          name,
-        )}`,
-      );
-    }
-  };
-  const openDirections = async (
-    lat?: number | null,
-    lng?: number | null,
-    label?: string,
-  ) => {
-    const name = label || 'Destination';
-    if (Platform.OS === 'ios') {
-      const canOpenGoogle = await Linking.canOpenURL('comgooglemaps://');
-      if (lat != null && lng != null) {
-        if (canOpenGoogle) {
-          if (
-            await safeOpen(
-              `comgooglemaps://?daddr=${lat},${lng}&directionsmode=driving`,
-            )
-          )
-            return;
-        }
-        if (
-          await safeOpen(`http://maps.apple.com/?daddr=${lat},${lng}&dirflg=d`)
-        )
-          return;
-        await safeOpen(
-          `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`,
-        );
-        return;
-      }
-      if (canOpenGoogle) {
-        if (
-          await safeOpen(
-            `comgooglemaps://?daddr=${encodeURIComponent(
-              name,
-            )}&directionsmode=driving`,
-          )
-        )
-          return;
-      }
-      if (
-        await safeOpen(
-          `http://maps.apple.com/?daddr=${encodeURIComponent(name)}&dirflg=d`,
-        )
-      )
-        return;
-      await safeOpen(
-        `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(
-          name,
-        )}&travelmode=driving`,
-      );
-      return;
-    }
-
-    if (lat != null && lng != null) {
-      await safeOpen(
-        `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`,
-      );
-    } else {
-      await safeOpen(
-        `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(
-          name,
-        )}&travelmode=driving`,
-      );
-    }
-  };
-  const isStartDisabled =
-    !!ticketDetails?.isStarted ||
-    (ticketDetails?.status || '').trim().toLowerCase() === 'in progress';
-
-  const handleViewOnMap = () =>
-    openMapCenter(coords?.lat ?? null, coords?.lng ?? null, getCutQuery());
-  const handleDirections = () => {
-    const p = parseLatLng(ticketDetails?.cutLocation);
-    const lat = p?.lat ?? coords?.lat ?? null;
-    const lng = p?.lng ?? coords?.lng ?? null;
-    openDirections(lat, lng, getCutQuery());
-  };
-
-  /** ---------------- Render ---------------- */
   if (loading && !ticketDetails) {
     return (
-      <SafeAreaView style={styles.container}>
-        <StatusBar backgroundColor={COLORS.PRIMARY} barStyle="light-content" />
-        <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}>
-            <Text style={styles.backText}>←</Text>
-          </TouchableOpacity>
-          <View style={styles.headerCenter}>
-            <View style={styles.logo}>
-              <Text style={styles.logoText}>G</Text>
-            </View>
-            <Text style={styles.headerTitle}>Ticket Details</Text>
-          </View>
-          <View style={styles.headerRight}>
-            <View style={styles.networkIndicator} />
-          </View>
-        </View>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={COLORS.PRIMARY} />
-          <Text style={styles.loadingText}>Loading ticket details...</Text>
-        </View>
+      <SafeAreaView style={styles.centerScreen}>
+        <ActivityIndicator size="large" color={COLORS.PRIMARY} />
+        <Text style={styles.loadingText}>Loading ticket details...</Text>
       </SafeAreaView>
     );
   }
 
-  if ((error && !ticketDetails) || !ticketDetails) {
+  if (error && !ticketDetails) {
     return (
-      <SafeAreaView style={styles.container}>
-        <StatusBar backgroundColor={COLORS.PRIMARY} barStyle="light-content" />
-        <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}>
-            <Text style={styles.backText}>←</Text>
-          </TouchableOpacity>
-          <View style={styles.headerCenter}>
-            <View style={styles.logo}>
-              <Text style={styles.logoText}>G</Text>
-            </View>
-            <Text style={styles.headerTitle}>Ticket Details</Text>
-          </View>
-          <View style={styles.headerRight}>
-            <View style={styles.networkIndicator} />
-          </View>
-        </View>
-        <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>
-            {error || 'Ticket details not found'}
-          </Text>
-          <TouchableOpacity style={styles.retryBtn} onPress={refetch}>
-            <Text style={styles.retryText}>Retry</Text>
-          </TouchableOpacity>
-        </View>
+      <SafeAreaView style={styles.centerScreen}>
+        <Text style={styles.errorText}>{error || 'Unable to load ticket'}</Text>
+        <TouchableOpacity style={styles.retryBtn} onPress={refetch}>
+          <Text style={styles.retryText}>Retry</Text>
+        </TouchableOpacity>
       </SafeAreaView>
     );
   }
+
+  if (!ticketDetails) {
+    return (
+      <SafeAreaView style={styles.centerScreen}>
+        <Text style={styles.errorText}>Ticket not found</Text>
+      </SafeAreaView>
+    );
+  }
+
+  /* ---------------- Main Render ---------------- */
 
   return (
     <SafeAreaView style={styles.container}>
@@ -607,32 +467,32 @@ const TicketDetailsScreen: React.FC = () => {
           <View style={styles.networkIndicator} />
         </View>
       </View>
-
+      {/* MAIN SCROLL */}
       <ScrollView
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}>
-        {/* Contact & Assignment Info */}
+        {/* Contact Section */}
         <View style={styles.contactSection}>
           <View style={styles.contactRow}>
             <View style={styles.contactLeft}>
-              <Text style={styles.ticketLabel}>
-                {ticketDetails.LinkId || '—'}
-              </Text>
+              <Text style={styles.ticketLabel}>{ticketDetails.LinkId}</Text>
               <Text style={styles.contactDate}>
                 {formatDate(ticketDetails.createdDate)}
               </Text>
             </View>
+
             <View style={styles.detailRow}>
               <View
                 style={[
                   styles.statusBadge,
-                  {backgroundColor: getStatusColor(ticketDetails.status || '')},
+                  {backgroundColor: getStatusColor(ticketDetails.status)},
                 ]}>
                 <Text style={styles.statusText}>
-                  {(ticketDetails.status || '').toUpperCase()}
+                  {String(ticketDetails.status).toUpperCase()}
                 </Text>
               </View>
             </View>
+
             <View style={styles.contactRight}>
               <Text style={styles.assignedLabel}>Assigned by</Text>
               <Text style={styles.assignedName}>
@@ -658,6 +518,7 @@ const TicketDetailsScreen: React.FC = () => {
               Ticket Details
             </Text>
           </TouchableOpacity>
+
           <TouchableOpacity
             style={[
               styles.tab,
@@ -674,7 +535,7 @@ const TicketDetailsScreen: React.FC = () => {
           </TouchableOpacity>
         </View>
 
-        {/* Tab Content */}
+        {/* TAB CONTENT */}
         {activeTab === 'TICKET_DETAILS' ? (
           <View style={styles.tabContent}>
             <View style={styles.detailsSection}>
@@ -682,10 +543,12 @@ const TicketDetailsScreen: React.FC = () => {
                 <Text style={styles.purpleLabel}>Link ID</Text>
                 <Text style={styles.detailValue}>{ticketDetails.LinkId}</Text>
               </View>
+
               <View style={styles.detailRow}>
                 <Text style={styles.purpleLabel}>Link Name</Text>
                 <Text style={styles.detailValue}>{ticketDetails.linkName}</Text>
               </View>
+
               <View style={styles.detailRow}>
                 <Text style={styles.purpleLabel}>Fault Type</Text>
                 <Text style={[styles.detailValue, {color: 'red'}]}>
@@ -693,28 +556,32 @@ const TicketDetailsScreen: React.FC = () => {
                 </Text>
               </View>
 
-              {/* Cut Location + actions */}
+              {/* CUT LOCATION */}
               <View style={styles.detailRow}>
                 <Text style={styles.purpleLabel}>Cut Location</Text>
                 <View style={styles.valueBlock}>
                   <Text style={styles.detailValue}>
-                    {ticketDetails.address}
+                    {/* API वाला address + resolved address दोनों में से जो चाहिए वो रख सकते हो */}
+                    {ticketDetails.address || address}
                   </Text>
+
                   <View style={styles.actionsRow}>
                     <TouchableOpacity
                       style={styles.actionBtn}
-                      onPress={handleDirections}>
+                      onPress={openDirections}>
                       <Text style={styles.actionBtnText}>View on Map</Text>
                     </TouchableOpacity>
                   </View>
                 </View>
               </View>
+
               <View style={styles.detailRow}>
                 <Text style={styles.purpleLabel}>Total Distance</Text>
                 <Text style={styles.detailValue}>
                   {Number(ticketDetails.totalDistanceKm).toFixed(3)} mtr
                 </Text>
               </View>
+
               <View style={styles.detailRow}>
                 <Text style={styles.purpleLabel}>Cut Distance</Text>
                 <Text style={styles.detailValue}>
@@ -732,6 +599,7 @@ const TicketDetailsScreen: React.FC = () => {
                   {ticketDetails.contactPersonName}
                 </Text>
               </View>
+
               <View style={styles.detailRow}>
                 <Text style={styles.purpleLabel}>Contact Mobile</Text>
                 <Text style={styles.detailValue}>
@@ -742,97 +610,87 @@ const TicketDetailsScreen: React.FC = () => {
           </View>
         )}
 
-        {/* Status Change Section */}
-        {/* Status Change Section */}
-        {/* 🟩 Status Change Section */}
-        {/* 🟩 Status Change Section */}
-        {/* 🟩 Status Change Section */}
+        {/* STATUS SECTION */}
         <View style={styles.statusChangeSection}>
           <Text style={styles.statusChangeTitle}>
             Change ticket status below
           </Text>
+
           <View style={styles.statusButtons}>
-            {(() => {
-              const lowerStatus = (ticketDetails?.status || '')
-                .trim()
-                .toLowerCase();
+            {showAck && (
+              <TouchableOpacity
+                style={[styles.statusBtn, styles.startBtn]}
+                onPress={handleAcknowledge}>
+                <Text style={styles.statusBtnText}>Acknowledge</Text>
+              </TouchableOpacity>
+            )}
 
-              // 🟥 START button disabled for these statuses
-              const isStartDisabled = [
-                'closed by system',
-                'task complete',
-                'closed',
-                'closed by splicer',
-                'in progress',
-              ].includes(lowerStatus);
+            {showTravelStart && (
+              <TouchableOpacity
+                style={[styles.statusBtn, styles.updateBtn]}
+                onPress={handleTravelStart}>
+                <Text style={styles.statusBtnText}>Travel Start</Text>
+              </TouchableOpacity>
+            )}
 
-              // 🟥 CLOSE button disabled for these statuses
-              const isCloseDisabled = [
-                'closed by system',
-                'task complete',
-                'closed',
-                'closed by splicer',
-              ].includes(lowerStatus);
+            {showActivityStart && (
+              <TouchableOpacity
+                style={[styles.statusBtn, styles.startBtn]}
+                onPress={handleStart}>
+                <Text style={styles.statusBtnText}>Activity Start</Text>
+              </TouchableOpacity>
+            )}
 
-              // 🟩 Change START label if status is "In Progress"
-              const startButtonLabel =
-                lowerStatus === 'in progress' ? 'START' : 'START';
-
-              return (
-                <>
-                  {/* START / FOLLOWUP Button */}
-                  <TouchableOpacity
-                    style={[
-                      styles.statusBtn,
-                      styles.startBtn,
-                      isStartDisabled && styles.disabledBtn,
-                    ]}
-                    onPress={handleStart}
-                    disabled={isStartDisabled}>
-                    <Text style={styles.statusBtnText}>{startButtonLabel}</Text>
-                  </TouchableOpacity>
-
-                  {/* CLOSE Button */}
-                  <TouchableOpacity
-                    style={[
-                      styles.statusBtn,
-                      styles.closeBtn,
-                      isCloseDisabled && styles.disabledBtn,
-                    ]}
-                    onPress={handleClose}
-                    disabled={isCloseDisabled}>
-                    <Text style={styles.statusBtnText}>CLOSE</Text>
-                  </TouchableOpacity>
-                </>
-              );
-            })()}
+            <TouchableOpacity
+              style={[
+                styles.statusBtn,
+                styles.closeBtn,
+                disableClose && styles.disabledBtn,
+              ]}
+              disabled={disableClose}
+              onPress={handleClose}>
+              <Text style={styles.statusBtnText}>Activity Close</Text>
+            </TouchableOpacity>
           </View>
         </View>
 
-        {/* Info Card */}
-        {/* <View style={styles.contactDetailsCard}>
-          <View style={styles.contactCardHeader}>
-            <Text style={styles.contactCardTitle}>
-              By: {ticketDetails.assignedBy || 'NOC'}
-            </Text>
-          </View>
-          <View style={styles.contactCardContent}>
-            <Text style={styles.contactCardLabel}>Location</Text>
-            <Text style={styles.contactCardValue}>
-              {ticketDetails.nearestChamber}
-            </Text>
-
-            <Text style={styles.contactCardLabel}>Remark</Text>
-            <Text style={styles.contactCardValue}>{ticketDetails.remark}</Text>
-          </View>
-        </View> */}
         <View style={styles.bottomSpacing} />
+        {travelStartTime && (
+          <View
+            style={{
+              backgroundColor: COLORS.WHITE,
+              paddingHorizontal: 16,
+              paddingVertical: 12,
+              marginTop: 10,
+              borderWidth: 2,
+              borderColor: COLORS.PRIMARY,
+              borderRadius: 8,
+              alignItems: 'center',
+            }}>
+            <Text
+              style={{
+                fontSize: 18,
+                color: COLORS.PRIMARY,
+                fontWeight: 'bold',
+              }}>
+              Travel SLA Time
+            </Text>
+            <Text
+              style={{
+                marginTop: 6,
+                fontSize: 24,
+                color: COLORS.SUCCESS,
+                fontWeight: 'bold',
+              }}>
+              {travelTimer}
+            </Text>
+          </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
 };
-
-/** ---------------- Styles ---------------- */
+/* ---------------- Styles ---------------- */
 const styles = StyleSheet.create({
   container: {flex: 1, backgroundColor: COLORS.BACKGROUND_DEFAULT},
   header: {
@@ -903,7 +761,6 @@ const styles = StyleSheet.create({
     color: COLORS.TEXT_DARK,
     fontWeight: 'bold',
   },
-
   purpleLabel: {
     width: SIZE.MS(110),
     fontSize: SIZE.MS(12),
@@ -925,7 +782,6 @@ const styles = StyleSheet.create({
   },
   tabText: {color: COLORS.WHITE, fontSize: SIZE.MS(14), fontWeight: '500'},
   activeTabText: {color: COLORS.WHITE, fontWeight: 'bold'},
-
   tabContent: {backgroundColor: COLORS.WHITE, minHeight: SIZE.MVS(200)},
   detailsSection: {
     paddingHorizontal: SIZE.MS(16),
@@ -956,7 +812,6 @@ const styles = StyleSheet.create({
     paddingLeft: SIZE.MS(7),
   },
   valueBlock: {flex: 1},
-
   actionsRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -974,7 +829,6 @@ const styles = StyleSheet.create({
     fontSize: SIZE.MS(11),
     fontWeight: '700',
   },
-
   statusBadge: {
     alignSelf: 'flex-end',
     paddingHorizontal: SIZE.MS(8),
@@ -982,7 +836,6 @@ const styles = StyleSheet.create({
     borderRadius: SIZE.MS(4),
   },
   statusText: {color: COLORS.WHITE, fontSize: SIZE.MS(10), fontWeight: 'bold'},
-
   statusChangeSection: {
     backgroundColor: COLORS.WHITE,
     paddingHorizontal: SIZE.MS(16),
@@ -1011,7 +864,6 @@ const styles = StyleSheet.create({
     fontSize: SIZE.MS(12),
     fontWeight: 'bold',
   },
-
   contactDetailsCard: {
     backgroundColor: COLORS.WHITE,
     marginHorizontal: SIZE.MS(16),
@@ -1055,11 +907,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: COLORS.BACKGROUND_DEFAULT,
   },
-  loadingText: {
-    marginTop: SIZE.MS(12),
-    color: COLORS.TEXT_MEDIUM,
-    fontSize: SIZE.MS(16),
-  },
+
   errorContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -1067,19 +915,33 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.BACKGROUND_DEFAULT,
     paddingHorizontal: SIZE.MS(32),
   },
-  errorText: {
+  centerScreen: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: COLORS.BACKGROUND_DEFAULT,
+  },
+  loadingText: {
+    marginTop: 10,
     color: COLORS.TEXT_MEDIUM,
-    fontSize: SIZE.MS(16),
+    fontSize: 16,
+  },
+  errorText: {
+    color: COLORS.ERROR,
+    fontSize: 16,
+    marginBottom: 12,
     textAlign: 'center',
-    marginBottom: SIZE.MVS(16),
   },
   retryBtn: {
     backgroundColor: COLORS.PRIMARY,
-    paddingHorizontal: SIZE.MS(24),
-    paddingVertical: SIZE.MVS(12),
-    borderRadius: SIZE.MS(8),
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
   },
-  retryText: {color: COLORS.WHITE, fontSize: SIZE.MS(14), fontWeight: 'bold'},
+  retryText: {
+    color: COLORS.WHITE,
+    fontWeight: 'bold',
+  },
 });
 
 export default TicketDetailsScreen;
