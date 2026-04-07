@@ -303,6 +303,8 @@ const moduleNavigation = (item: DataType.SubModule) => {
     navigator?.getParent()?.navigate('AddChamberComplaint');
   } else if (check(item.subModuleName, 'PATROLLER TASK')) {
     navigator?.getParent()?.navigate('PatrollerTask');
+  } else if (check(item.subModuleName, 'SearchCustomer')) {
+    navigator?.getParent()?.navigate('PKP');
   } else if (__DEV__) {
     navigator.navigate('DeveloperPKPScreen');
   } else {
@@ -421,7 +423,7 @@ const LogoView = ({desc}: {desc: string; verCode?: string}) => {
         <View style={styles.logoView}>
           <Buttons
             type="primary"
-            title={'DEV'}
+            title={'PROD'}
             viewStyle={styles.devButtonView}
           />
           <View style={styles.logoNameView}>
@@ -448,7 +450,7 @@ const LogoView = ({desc}: {desc: string; verCode?: string}) => {
       <View style={styles.logoView}>
         <Buttons
           type="primary"
-          title={'DEV'}
+          title={'PROD'}
           viewStyle={styles.devButtonView}
         />
         <View style={styles.logoNameView}>
@@ -1123,13 +1125,13 @@ const Home: FC<ScreenProps.Home> = ({loading, dashboardList, navigation}) => {
               }}
             />
           )}
-          {currentAddress ? (
+          {/* {currentAddress ? (
             <View style={{paddingHorizontal: 16, paddingVertical: 8}}>
               <Text style={{color: COLORS.PRIMARY, fontSize: 14}}>
                 📍 {currentAddress}
               </Text>
             </View>
-          ) : null}
+          ) : null} */}
           <SyncOfflineDataSheet
             show={showSync}
             onSyncPress={() => syncOfflineData()}

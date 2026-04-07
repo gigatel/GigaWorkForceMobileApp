@@ -18,13 +18,11 @@ import {
   View,
 } from 'react-native';
 import {TicketData} from 'src/types/ticket.types';
-
 type TicketDetailsRouteProp = RouteProp<RootStackParamList, 'TicketDetails'>;
 type TicketDetailsNavigationProp = NativeStackNavigationProp<
   RootStackParamList,
   'TicketDetails'
 >;
-
 // utils/mapper.ts
 export const mapDetailsToTicket = (d: TicketDetailsData): TicketData => ({
   id: d.id,
@@ -54,7 +52,6 @@ export const mapDetailsToTicket = (d: TicketDetailsData): TicketData => ({
   rawData: {} as any,
   formData: {} as any,
 });
-
 interface TicketDetailsData {
   id: string;
   transactionNo: string;
@@ -79,19 +76,15 @@ interface TicketDetailsData {
   otdrLength: string;
   modeOfComplaint: string;
 }
-
 const TicketDetailsScreen: React.FC = () => {
   const route = useRoute<TicketDetailsRouteProp>();
   const navigation = useNavigation<TicketDetailsNavigationProp>();
-
   const {ticketId} = route.params;
   const {ticketDetails, followUps, error, loading, refetch} =
     useTicketDetails(ticketId);
-
   const [activeTab, setActiveTab] = useState<
     'TICKET_DETAILS' | 'CONTACT_DETAILS'
   >('TICKET_DETAILS');
-
   const formatDate = (dateStr: string): string => {
     if (!dateStr) return '';
     try {
@@ -120,14 +113,12 @@ const TicketDetailsScreen: React.FC = () => {
       return dateStr;
     }
   };
-
   const handleOldIR = () => {
     Alert.alert('Old IR', 'Open existing Installation Report?', [
       {text: 'Cancel', style: 'cancel'},
       {text: 'Open', onPress: () => Common.showToast('Opening Old IR...')},
     ]);
   };
-
   const handleNewIR = () => {
     Alert.alert(
       'New IR - Update Core',
@@ -141,7 +132,6 @@ const TicketDetailsScreen: React.FC = () => {
       ],
     );
   };
-
   const handleStart = () => {
     if (ticketDetails?.isStarted) {
       Common.showToast('Ticket already started');
@@ -163,7 +153,6 @@ const TicketDetailsScreen: React.FC = () => {
       },
     ]);
   };
-
   const handleUpdate = () => {
     navigation.navigate('FollowUpScreen', {
       ticketId,
@@ -171,7 +160,6 @@ const TicketDetailsScreen: React.FC = () => {
       // mode:'update',
     });
   };
-
   const handleClose = () => {
     Alert.alert('Close Ticket', 'Are you sure you want to close this ticket?', [
       {text: 'Cancel', style: 'cancel'},
@@ -186,7 +174,6 @@ const TicketDetailsScreen: React.FC = () => {
       },
     ]);
   };
-
   const getPriorityColor = (priority: string) => {
     switch (priority?.toLowerCase()) {
       case 'high':
@@ -199,7 +186,6 @@ const TicketDetailsScreen: React.FC = () => {
         return COLORS.TEXT_MEDIUM;
     }
   };
-
   const getStatusColor = (status: string) => {
     switch (status?.toLowerCase()) {
       case 'assigned':
@@ -212,7 +198,6 @@ const TicketDetailsScreen: React.FC = () => {
         return COLORS.TEXT_MEDIUM;
     }
   };
-
   const renderTicketDetailsTab = () => (
     <View style={styles.tabContent}>
       <View style={styles.detailsSection}>
@@ -269,7 +254,6 @@ const TicketDetailsScreen: React.FC = () => {
       </View>
     </View>
   );
-
   const renderContactDetailsTab = () => (
     <View style={styles.tabContent}>
       <View style={styles.contactDetailsSection}>
@@ -288,7 +272,6 @@ const TicketDetailsScreen: React.FC = () => {
       </View>
     </View>
   );
-
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
@@ -316,7 +299,6 @@ const TicketDetailsScreen: React.FC = () => {
       </SafeAreaView>
     );
   }
-
   if (error || !ticketDetails) {
     return (
       <SafeAreaView style={styles.container}>
@@ -348,11 +330,9 @@ const TicketDetailsScreen: React.FC = () => {
       </SafeAreaView>
     );
   }
-
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar backgroundColor={COLORS.PRIMARY} barStyle="light-content" />
-
       {/* Header - Changed from BUTTON_PRIMARY to PRIMARY */}
       <View style={styles.header}>
         <TouchableOpacity
@@ -370,7 +350,6 @@ const TicketDetailsScreen: React.FC = () => {
           <View style={styles.networkIndicator} />
         </View>
       </View>
-
       <ScrollView
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}>
@@ -393,7 +372,6 @@ const TicketDetailsScreen: React.FC = () => {
             </View>
           </View>
         </View>
-
         {/* Working Tabs - Changed from BUTTON_PRIMARY to PRIMARY */}
         <View style={styles.tabsHeader}>
           <TouchableOpacity
@@ -428,7 +406,6 @@ const TicketDetailsScreen: React.FC = () => {
         {activeTab === 'TICKET_DETAILS'
           ? renderTicketDetailsTab()
           : renderContactDetailsTab()}
-
         {/* IR Buttons */}
         <View style={styles.irButtonsContainer}>
           <TouchableOpacity style={styles.irButton} onPress={handleOldIR}>
@@ -442,7 +419,6 @@ const TicketDetailsScreen: React.FC = () => {
             </Text>
           </TouchableOpacity>
         </View>
-
         {/* Status Change Section */}
         <View style={styles.statusChangeSection}>
           <Text style={styles.statusChangeTitle}>
@@ -471,7 +447,6 @@ const TicketDetailsScreen: React.FC = () => {
             </TouchableOpacity>
           </View>
         </View>
-
         {/* Demo User Contact Card - Changed from BUTTON_PRIMARY to PRIMARY */}
         <View style={styles.contactDetailsCard}>
           <View style={styles.contactCardHeader}>
@@ -490,19 +465,16 @@ const TicketDetailsScreen: React.FC = () => {
             </Text>
           </View>
         </View>
-
         <View style={styles.bottomSpacing} />
       </ScrollView>
     </SafeAreaView>
   );
 };
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.BACKGROUND_DEFAULT,
   },
-  // ✅ CHANGED: All BUTTON_PRIMARY replaced with PRIMARY (purple)
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -573,7 +545,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   contactBadge: {
-    backgroundColor: COLORS.PRIMARY, // ✅ Changed from BUTTON_PRIMARY
+    backgroundColor: COLORS.PRIMARY,
     paddingHorizontal: SIZE.MS(12),
     paddingVertical: SIZE.MVS(4),
     borderRadius: SIZE.MS(12),
@@ -834,5 +806,4 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
 });
-
 export default TicketDetailsScreen;

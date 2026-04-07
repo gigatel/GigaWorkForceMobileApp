@@ -252,7 +252,10 @@ const StartTicketScreen: React.FC<Props> = ({
   }, [addressOk, photos, remarks]);
 
   // ---- API transforms ----
+  //working in mob
   const toApiImage = (img?: PickerImage) => {
+    console.log('toApiImage:', {img});
+
     if (!img) return undefined;
     const anyImg = img as any;
     const base64: string | undefined = anyImg?.data;
@@ -262,7 +265,32 @@ const StartTicketScreen: React.FC<Props> = ({
       imageExtention: getExtFromMime(anyImg?.mime),
     };
   };
+  // const toApiImage = (img?: PickerImage) => {
+  //   console.log('toApiImage:', {img});
 
+  //   if (!img) return undefined;
+
+  //   const anyImg = img as any;
+
+  //   let base64: string | undefined = anyImg?.data;
+
+  //   // ❌ Agar base64 hi nahi mila
+  //   if (!base64) {
+  //     console.log('❌ No base64 found in image');
+  //     return undefined;
+  //   }
+
+  //   // ✅ Prefix add karo agar missing hai
+  //   if (!base64.startsWith('data:')) {
+  //     const mime = anyImg?.mime || 'image/jpeg';
+  //     base64 = `data:${mime};base64,${base64}`;
+  //   }
+
+  //   return {
+  //     imageData: base64,
+  //     imageExtention: getExtFromMime(anyImg?.mime || 'image/jpeg'),
+  //   };
+  // };
   // ⬇️ Resolve assignTaskId (ticket > route > prop > default)
   const effectiveAssignTaskId = useMemo(() => {
     const fromTicket =
@@ -353,11 +381,11 @@ const StartTicketScreen: React.FC<Props> = ({
       ).unwrap();
       console.log('[FOLLOWUP RESPONSE]', res);
       if (res?.success) {
-        // Alert.alert('Success', 'Follow-up submitted successfully.', [
-        //   {text: 'OK', onPress: () => navigation.navigate('TicketsList')},
-        // ]);
-        Common.showToast('Ticket Started  successfully.');
-        navigation.replace('TicketsList');
+        Common.showToast('Ticket Start successfully.');
+        navigation.reset({
+          index: 0,
+          routes: [{name: 'TicketsList', params: {refresh: true}}],
+        });
       } else {
         Alert.alert('Error', res?.message || 'Failed to start ticket');
       }

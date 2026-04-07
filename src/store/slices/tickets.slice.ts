@@ -5,18 +5,31 @@ import { Common, Preferences } from '@utils';
 import { URLs } from '@apis';
 /** ---- Types ---- */
 export type TicketItem = Record<string, any>;
-
 export interface ApiError {
   status?: number;
   success?: false;
   message?: string;
   data?: any;
 }
+export type AcknowledgeBody = {
+  assignTaskId: number;
+  status: string;
+  // remark: string;
+  empId: number;
+};
 export interface RFOEmployee {
   id: number;
   name: string;
   isActive: boolean;
   organizationId: number;
+}
+export interface travelStartBody {
+  empId: number;
+  assignTaskId: number,
+}
+export interface travelStopBody {
+  empId: number;
+  assignTaskId: number,
 }
 export interface ApiListResponse<T> {
   status: number;
@@ -24,8 +37,6 @@ export interface ApiListResponse<T> {
   message?: string;
   data: T[];
 }
-
-
 export type GetComplaintsBody = {
   empId: number;
   date: string;
@@ -36,14 +47,14 @@ export type FollowupImage = {
   imageExtention: string;
 };
 export type CreateFollowupBody = {
-  assignTaskId: number;     // (required) the ticket/work id (from your backend)
-  address: string;          // (required) text address / nearest location
-  remark: string;           // (required) note text
-  empId: number;            // (required) employee id (we default from Preferences)
-  lat: string;              // (required) store as string to keep exact format
-  lng: string;              // (required) store as string to keep exact format
-  image1?: FollowupImage;   // (optional) base64 + ext
-  image2?: FollowupImage;   // (optional)
+  assignTaskId: number;
+  address: string;
+  remark: string;
+  empId: number;
+  lat: string;
+  lng: string;
+  image1?: FollowupImage;
+  image2?: FollowupImage;
 };
 export type CloseFollowupBody = {
   assignTaskId: number;     // (required) the ticket/work id (from your backend)
@@ -57,7 +68,13 @@ export type CloseFollowupBody = {
   rfoId: string;
   rfO_materialName: string;
 };
-
+export type HoldTicketBody = {
+  assignTaskId: number;
+  empId: number;
+  rfoId: number;
+  rfO_materialName: string;
+  remark: string;
+};
 // Minimal followup item shape (adjust fields as your API returns)
 export type FollowupItem = {
   id?: string | number;
@@ -111,7 +128,6 @@ const initialState: TicketState = {
   rfoError: null,
 };
 
-
 /** ---- Helpers ---- */
 const toIsoString = (d: string | Date): string => (typeof d === 'string' ? d : d.toISOString());
 
@@ -132,16 +148,13 @@ export const getEmpComplaintsByDate = createAsyncThunk(
           ? params.organizationId
           : Number(Preferences.getData('ORGANIZATION_ID'));
       const dateIso = toIsoString(params.date);
-
       if (!empId || Number.isNaN(empId)) return thunkAPI.rejectWithValue({ message: 'Missing empId' });
       if (!organizationId || Number.isNaN(organizationId)) return thunkAPI.rejectWithValue({ message: 'Missing organizationId' });
       if (!dateIso) return thunkAPI.rejectWithValue({ message: 'Invalid date' });
-
       const body: GetComplaintsBody = { empId, date: dateIso, organizationId };
-
       const res: { status?: number; success?: boolean; message?: string; data?: any } =
         await APIs.postRequestWithJson({
-          path:`${URLs.getComplaintsDate}`,
+          path: `${URLs.getComplaintsDate}`,
           params: body,
           isAuth: true,
         });
@@ -153,7 +166,6 @@ export const getEmpComplaintsByDate = createAsyncThunk(
           status: res?.status,
         });
       }
-
       let items: TicketItem[] = [];
       if (Array.isArray(res.data)) items = res.data;
       else if (res?.data?.items && Array.isArray(res.data.items)) items = res.data.items;
@@ -166,8 +178,6 @@ export const getEmpComplaintsByDate = createAsyncThunk(
     }
   }
 );
-
-
 /** ---- NEW Thunk: getEmpComplaintDetails (GET by id via query) ----
  * Mirrors your attendance slice pattern.
  * - Uses GET with query param
@@ -183,10 +193,8 @@ export const getEmpComplaintDetails = createAsyncThunk<
     try {
       const idStr = String(id);
       const isNetOn = await Common.getNetConnection();
-
       const state = thunkApi.getState();
       const cached = state?.tickets?.detailById?.[idStr];
-
       // If offline and we have cached, use it
       if (!isNetOn && cached) {
         return { id: idStr, item: cached };
@@ -200,7 +208,6 @@ export const getEmpComplaintDetails = createAsyncThunk<
           data: { id: idStr },
         });
       }
-
       // Online OR forced refresh -> fetch
       if (isNetOn || refresh) {
         const res = await APIs.getRequestWithQuery({
@@ -208,18 +215,15 @@ export const getEmpComplaintDetails = createAsyncThunk<
           params: '',
           isAuth: true,
         });
-
         const status = Number(res?.status ?? 0);
         const success = !!res?.success;
         const data = res?.data;
-
         if (status === 200 && success) {
           // API may return an object or array; normalize to one item
           const item: TicketItem =
             Array.isArray(data) ? data[0] ?? {} : (data ?? {});
           return { id: idStr, item };
         }
-
         return thunkApi.rejectWithValue({
           status,
           success: false,
@@ -227,7 +231,6 @@ export const getEmpComplaintDetails = createAsyncThunk<
           data: res?.data,
         });
       }
-
       // Should not reach here
       return thunkApi.rejectWithValue({
         status: 0,
@@ -244,9 +247,7 @@ export const getEmpComplaintDetails = createAsyncThunk<
     }
   }
 );
-
 // export closeCOmplaintDEtails = createAsyncThunk<>(
-
 // )
 // ==== FOLLOWUP POST — API path ====
 // const FOLLOWUP_CREATE_PATH =
@@ -273,11 +274,10 @@ export const createTicketFollowup = createAsyncThunk<
         typeof args.empId === 'number' && !Number.isNaN(args.empId)
           ? args.empId
           : Number(Preferences.getData('EMPLOYEE_ID'));
-
       if (!empId || Number.isNaN(empId)) {
         return rejectWithValue({ message: 'Missing empId (Preferences or arg)' });
       }
-       const body: CreateFollowupBody = {
+      const body: CreateFollowupBody = {
         assignTaskId: args.assignTaskId,
         address: args.address,
         remark: args.remark,
@@ -287,11 +287,10 @@ export const createTicketFollowup = createAsyncThunk<
         ...(args.image1 ? { image1: args.image1 } : {}),
         ...(args.image2 ? { image2: args.image2 } : {}),
       };
-      console.log('CreateFollowupBodyData:',{body});
-      return;
+      console.log('CreateFollowupBodyData:', { body });
       const res: { status?: number; success?: boolean; message?: string; data?: any } =
         await APIs.postRequestWithJson({
-          path:  `${URLs.followUpComplaint}`,
+          path: `${URLs.followUpComplaint}`,
           params: body,
           isAuth: true,
         });
@@ -323,8 +322,8 @@ export const closeTicketFollowup = createAsyncThunk<
     remark: string;
     lat: string;
     lng: string;
-    rfoId?: number;               // ⭐ ADDED
-    rfO_materialName?: string;    // ⭐ ADDED
+    rfoId?: number;
+    rfO_materialName?: string;
   },
   { rejectValue: ApiError }
 >(
@@ -335,11 +334,9 @@ export const closeTicketFollowup = createAsyncThunk<
         typeof args.empId === 'number' && !Number.isNaN(args.empId)
           ? args.empId
           : Number(Preferences.getData('EMPLOYEE_ID'));
-
       if (!empId || Number.isNaN(empId)) {
         return rejectWithValue({ message: 'Missing empId (Preferences or arg)' });
       }
-
       // ⭐ FINAL BODY (RFO added)
       const body: CloseFollowupBody = {
         assignTaskId: args.assignTaskId,
@@ -348,20 +345,17 @@ export const closeTicketFollowup = createAsyncThunk<
         empId,
         lat: args.lat,
         lng: args.lng,
-        rfoId: args.rfoId ?? 0, // ⭐ ADD
-        rfO_materialName: args.rfO_materialName ?? '', // ⭐ ADD
+        rfoId: args.rfoId ?? 0,
+        rfO_materialName: args.rfO_materialName ?? '',
         ...(args.image1 ? { image1: args.image1 } : {}),
         ...(args.image2 ? { image2: args.image2 } : {}),
       };
-
       console.log('CloseFollowupBodyData:', body);
-
       const res = await APIs.postRequestWithJson({
         path: `${URLs.removefollowUpComplaint}`,
         params: body,
         isAuth: true,
       });
-
       if (!res)
         return rejectWithValue({ message: 'Server not responding' });
 
@@ -384,9 +378,201 @@ export const closeTicketFollowup = createAsyncThunk<
     }
   }
 );
+/** ⭐⭐⭐ ---- NEW: Hold Ticket API (StopVehicleStatus) ---- ⭐⭐⭐ */
+export const holdTicketApi = createAsyncThunk<
+  { status?: number; success?: boolean; message?: string; data?: any },
+  { assignTaskId: number; rfoId: number; rfO_materialName: string; remark: string },
+  { rejectValue: ApiError }
+>(
+  'tickets/holdTicketApi',
+  async (args, { rejectWithValue }) => {
+    try {
+      const empId = Number(Preferences.getData('EMPLOYEE_ID'));
+      if (!empId)
+        return rejectWithValue({ message: 'Missing empId in Preferences' });
+
+      const body: HoldTicketBody = {
+        assignTaskId: args.assignTaskId,
+        empId,
+        rfoId: args.rfoId,
+        rfO_materialName: args.rfO_materialName,
+        remark: args.remark,
+      };
+      console.log('HoldTicketBodyData:', body);
+      const res = await APIs.postRequestWithJson({
+        path: URLs.HoldTicket, 
+        params: body,
+        isAuth: true,
+      });
+      if (!res || res.status !== 200 || !res.success) {
+        return rejectWithValue({
+          status: res?.status,
+          message: res?.message || 'Failed to Hold Ticket',
+          data: res?.data,
+          success: false,
+        });
+      }
+
+      return res;
+    } catch (err: any) {
+      return rejectWithValue({
+        status: err?.status ?? err?.response?.status,
+        message: err?.message ?? 'Network error',
+        success: false,
+        data: err?.data ?? err?.response?.data,
+      });
+    }
+  }
+);
+
+export const acknowledgeApi = createAsyncThunk<
+  { status?: number; success?: boolean; message?: string; data?: any },
+  AcknowledgeBody,
+  { rejectValue: ApiError }
+>(
+  'tickets/acknowledgeApi',
+  async (args, { rejectWithValue }) => {
+    try {
+      const empId = Number(Preferences.getData('EMPLOYEE_ID'));
+      if (!empId || Number.isNaN(empId)) {
+        return rejectWithValue({ message: 'Missing empId (Preferences or args)' });
+      }
+      const body: AcknowledgeBody = {
+        assignTaskId: args.assignTaskId,
+        status: args.status,
+        // remark: args.remark,
+        empId,
+      };
+      console.log('AcknowledgeBodyData:', body);
+      const res = await APIs.postRequestWithJson({
+        path: URLs.acknowledgement,
+        params: body,
+        isAuth: true,
+      });
+      if (!res) {
+        return rejectWithValue({ message: 'Server not responding' });
+      }
+      if (Number(res.status) !== 200 || res.success === false) {
+        return rejectWithValue({
+          status: res.status,
+          success: false,
+          message: res?.message || 'Failed to acknowledge ticket',
+          data: res?.data ?? null,
+        });
+      }
+      return res;
+    } catch (error: any) {
+      return rejectWithValue({
+        status: error?.status ?? error?.response?.status,
+        success: false,
+        message: error?.message ?? 'Network / unknown error',
+        data: error?.data ?? error?.response?.data,
+      });
+    }
+  }
+);
+export const travelStartApi = createAsyncThunk<
+  { status?: number; success?: boolean; message?: string; data?: any } | undefined,
+  { assignTaskId: number },
+  { rejectValue: ApiError }
+>(
+  'tickets/travelStartApi',
+  async (args, { rejectWithValue }) => {
+    try {
+      const empId = Number(Preferences.getData('EMPLOYEE_ID'));
+
+      if (!empId || Number.isNaN(empId)) {
+        return rejectWithValue({
+          message: 'Missing empId in Preferences',
+          success: false,
+        });
+      }
+      const body: travelStartBody = {
+        empId,
+        assignTaskId: args.assignTaskId,
+      };
+      console.log('TravelStartBodyData:', body);
+      const res = await APIs.postRequestWithJson({
+        path: URLs.travelStart,
+        params: body,
+        isAuth: true,
+      });
+       if (!res) {
+        return rejectWithValue({ message: 'Server not responding' });
+      }
+      if (Number(res.status) !== 200 || res.success === false) {
+        return rejectWithValue({
+          status: res.status,
+          success: false,
+          message: res.message ?? 'Failed to start travel',
+          data: res.data,
+        });
+      }
+      return res;
+    } catch (error: any) {
+      return rejectWithValue({
+        status: error?.status ?? error?.response?.status,
+        message: error?.message ?? 'Network error',
+        success: false,
+        data: error?.data ?? error?.response?.data,
+      });
+    }
+  }
+);
+export const travelStopApi = createAsyncThunk<
+  { status?: number; success?: boolean; message?: string; data?: any } | undefined,
+  { assignTaskId: number },
+  { rejectValue: ApiError }
+>(
+  'tickets/travelStopApi',
+  async (args, { rejectWithValue }) => {
+    try {
+      const empId = Number(Preferences.getData('EMPLOYEE_ID'));
+
+      if (!empId || Number.isNaN(empId)) {
+        return rejectWithValue({
+          message: 'Missing empId in Preferences',
+          success: false,
+        });
+      }
+
+      const body: travelStopBody = {
+        empId,
+        assignTaskId: args.assignTaskId,
+      };
+
+      console.log('TravelStopBodyData:', body);
+      const res = await APIs.postRequestWithJson({
+        path: URLs.travelStop,
+        params: body,
+        isAuth: true,
+      });
+      
+      if (!res) {
+        return rejectWithValue({ message: 'Server not responding' });
+      }
+      if (Number(res.status) !== 200 || res.success === false) {
+        return rejectWithValue({
+          status: res.status,
+          success: false,
+          message: res.message ?? 'Failed to start travel',
+          data: res.data,
+        });
+      }
+      return res;
+    } catch (error: any) {
+      return rejectWithValue({
+        status: error?.status ?? error?.response?.status,
+        message: error?.message ?? 'Network error',
+        success: false,
+        data: error?.data ?? error?.response?.data,
+      });
+    }
+  }
+);
 export const getRFOListApi = createAsyncThunk<
-  RFOEmployee[],    
-  void,             
+  RFOEmployee[],
+  void,
   { rejectValue: ApiError }
 >(
   `tickets/RFO/GetRFOList`,
@@ -398,7 +584,6 @@ export const getRFOListApi = createAsyncThunk<
           params: '',
           isAuth: true,
         });
-
       // SUCCESS
       if (res.status === 200 && res.success && Array.isArray(res.data)) {
         // Return EXACT same API data (no sorting, no modifying)
@@ -494,8 +679,31 @@ const ticketSlice = createSlice({
       .addCase(getRFOListApi.rejected, (state, action) => {
         state.rfoLoading = false;
         state.rfoError = action.payload;
-      });
-      
+      })
+      .addCase(acknowledgeApi.pending, (state) => {
+        state.creatingFollowup = 'pending';
+        state.createFollowupError = null;
+      })
+      .addCase(acknowledgeApi.fulfilled, (state) => {
+        state.creatingFollowup = 'idle';
+      })
+      .addCase(acknowledgeApi.rejected, (state, action) => {
+        state.creatingFollowup = 'idle';
+        state.createFollowupError = action.payload?.message ?? 'Failed to acknowledge ticket';
+      })
+      .addCase(travelStartApi.pending, (state) => {
+        state.creatingFollowup = 'pending';
+        state.createFollowupError = null;
+      })
+      .addCase(travelStartApi.fulfilled, (state) => {
+        state.creatingFollowup = 'idle';
+      })
+      .addCase(travelStartApi.rejected, (state, action) => {
+        state.creatingFollowup = 'idle';
+        state.createFollowupError = action.payload?.message ?? 'Failed to start travel';
+      })
+
+
   },
 });
 

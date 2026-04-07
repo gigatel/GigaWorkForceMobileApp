@@ -1,8 +1,6 @@
 
 // ==============================================================================
-
 import { COMPANY_ID_INFOCOMM, COMPANY_ID_NETWORK, COMPANY_ID_SOLUTION, COMPANY_ID_TECHNOSOFT } from './constant';
-
 // Primary Colors
 export const PRIMARY = '#0273b9';
 export const PRIMARY_MEDIUM = '#a751ed';

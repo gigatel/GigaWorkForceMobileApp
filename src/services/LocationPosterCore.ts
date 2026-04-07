@@ -96,7 +96,7 @@ export function formatServerDateTimeIST(d: Date = new Date()) {
   return `${DD}-${MM}-${YYYY} ${HH}:${mm}:${ss}`;
 }
 
-const MIN_GAP_MS = 5_000;
+const MIN_GAP_MS = 25_000;
 let posting = false;
 let lastLat: number | null = null;
 let lastLong: number | null = null;

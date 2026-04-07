@@ -17,28 +17,24 @@ const API_ENDPOINTS = {
     GET_CHAMBERS_BY_CIRCUIT: 'CircuitInfo/GetChambersByCircuitId',
     },
 };
-
 // Types
 interface CustomerResponse {
   id: string;
   name: string;
   // Add other customer fields as needed
 }
-
 interface CircuitResponse {
   id: string;
   name: string;
   customerId: string;
   // Add other circuit fields as needed
 }
-
 interface ChamberResponse {
   id: string;
   name: string;
   distance: number;
   // Add other chamber fields as needed
 }
-
 interface UpdateCoreRequest {
   chamberId: string;
   core1: string;
@@ -46,7 +42,6 @@ interface UpdateCoreRequest {
   tube: string;
   // Add other update fields as needed
 }
-
 class CircuitChamberService {
   private getEmployeeData() {
     try {

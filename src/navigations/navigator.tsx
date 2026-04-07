@@ -42,6 +42,8 @@ import TubeCoreDetailsScreen from '@screens/tickets/TubeCoreDetailsScreen';
 import ChamberDetailsScreen from '@screens/tickets/ChamberDetailsScreen';
 import {TicketDetailsData} from '../../src/types/ticket.types';
 import CloseTicketScreen from '@screens/tickets/CloseTicketScreen';
+import SearchCustomer from '@screens/SearchCustomer';
+import HoldTicketScreen from '@screens/tickets/HoldTicketScreen';
 type VideoRecorderRouteParams = {
   projectId: string;
   latLng: string;
@@ -51,6 +53,7 @@ export interface RootStackParamList {
   Splash: undefined;
   BottomTab: undefined;
   PrivacyPolicy: undefined;
+  SearchCustomer: undefined;
   Login: undefined;
   StartTicketScreen: {
     from: 'ticket-details';
@@ -60,13 +63,18 @@ export interface RootStackParamList {
     from: 'ticket-details';
     ticket: TicketDetailsData;
   };
-
+  HoldTicketScreen: {
+    from: 'ticket-details';
+    ticket: TicketDetailsData;
+  };
+  Home: undefined;
   OtpVerification: {userId: string; password: string; appType: string};
   AttendanceDashboard: {
     shiftType: DataType.ShiftType;
     isViewAllow: boolean;
     isMarkAllow: boolean;
   };
+
   RoadProject: {};
   AttendanceInOut: {
     from: 'in' | 'out';
@@ -94,7 +102,7 @@ export interface RootStackParamList {
   ChamberComplaintsList: undefined;
   AddChamberComplaint: undefined;
   DeveloperPKPScreen: undefined;
-  TicketsList: undefined;
+  TicketsList: {refresh?: boolean} | undefined;
   ChamberDetailsScreen: undefined;
   TicketDetails: {ticketId: string};
   TicketFollowUp: {
@@ -176,6 +184,7 @@ const RootStack: FC<{initialRoute: string}> = ({initialRoute}) => {
         component={TicketsList}
         options={{headerShown: false}}
       />
+      <Stack.Screen name="SearchCustomer" component={SearchCustomer} />
       <Stack.Screen
         name="ChamberDetailsScreen"
         component={ChamberDetailsScreen}
@@ -183,6 +192,7 @@ const RootStack: FC<{initialRoute: string}> = ({initialRoute}) => {
       />
       <Stack.Screen name="StartTicketScreen" component={StartTicketScreen} />
       <Stack.Screen name="CloseTicketScreen" component={CloseTicketScreen} />
+      <Stack.Screen name="HoldTicketScreen" component={HoldTicketScreen} />
       <Stack.Screen
         name="TicketDetails"
         component={TicketDetailsEnhanced}

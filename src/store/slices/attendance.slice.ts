@@ -643,7 +643,6 @@ interface AttendanceSliceState {
   postLocation: DataType.PostLocationResponse | null;
   insertPathResponse: any | null;
 }
-
 const initialState: AttendanceSliceState = attendanceAddapter.getInitialState({
   viewAttLoading: 'idle',
   inoutLoading: 'idle',
@@ -673,7 +672,6 @@ const initialState: AttendanceSliceState = attendanceAddapter.getInitialState({
   postLocation: null,
   insertPathResponse: null,              // ✅ added
 });
-
 const attendanceSlice = createSlice({
   name: ATTENDANCE,
   initialState,
@@ -705,7 +703,6 @@ const attendanceSlice = createSlice({
     builder.addCase(getTodayWorkingOnBehalfApi.pending, (state,) => {
       state.onBehalfLoading = 'pending';
     });
-
     builder.addCase(getTodayWorkingOnBehalfApi.fulfilled, (state, action) => {
       state.onBehalfLoading = 'fulfilled';
       state.todayWorkingOnBehalfData = action.payload?.data?.map((item: DataType.TodayBehalfOf) => ({
@@ -726,12 +723,10 @@ const attendanceSlice = createSlice({
       state.zoneChambersLoading = 'fulfilled';
       state.zoneChambersData = action.payload.data ?? [];
       Preferences.setData('EMPLOYEE_ZONE_CHAMBERS', action.payload.data ?? []);
-    }
-    );
+    });
     builder.addCase(getEmpZoneChambersApi.rejected, (state,) => {
       state.zoneChambersLoading = 'rejected';
     });
-    //! Get Emp Office Branches
     builder.addCase(getEmpOfficeBranchesApi.pending, (state,) => {
       state.officeBranchesLoading = 'pending';
     });

@@ -558,21 +558,18 @@ class TicketService {
         path: 'RFOMaster/GetRFOMasterDD',
         isAuth: true,
       });
-
       if (response?.data) {
         return {
           success: true,
           data: response.data,
         };
       }
-
       return {success: false, data: []};
     } catch (error) {
       Common.error('Get RFO reasons error:', error);
       return {success: false, data: []};
     }
   }
-
   // Update RFO status (matching updateRfoStatus)
   async updateRfoStatus(
     ticketId: string,
@@ -618,7 +615,7 @@ class TicketService {
 
       // ✅ Try with direct fetch first (for debugging)
       const directResponse = await fetch(
-        `http://mob.gigatel.me:40501/api/Complaint/GetComplaintById?id=${ticketId}`,
+        `http://mob.giagtel.me:60203/api/Complaint/GetComplaintById?id=${ticketId}`,
         {
           method: 'GET',
           headers: {
@@ -715,7 +712,7 @@ class TicketService {
     range?: number,
   ) {
     const url =
-      'http://mob.gigatel.me:40501/api/TicketDropDown/GetNearestChambers';
+      'http://mob.giagtel.me:60203/api/TicketDropDown/GetNearestChambers';
 
     const params = {companyCode, latitude, longitude, range}; // फिलहाल बस इतना
     const token = Preferences.getData('API_AUTH_TOKEN');
@@ -774,7 +771,7 @@ class TicketService {
       Common.log('📝 Adding Follow-Up (Fixed):', requestPayload);
 
       const response = await fetch(
-        'http://mob.gigatel.me:40501/api/Complaint/AddFollowUps', // ✅ Correct port
+        'http://mob.giagtel.me:60203/api/Complaint/AddFollowUps', // ✅ Correct port
         {
           method: 'POST',
           headers: {
@@ -817,7 +814,7 @@ class TicketService {
       Common.log('🏷️ Getting Issue Categories (TypeDD)');
 
       const res = await fetch(
-        'http://mob.gigatel.me:40601/api/TypeOfWork/GetTypeDD',
+        'http://mob.giagtel.me:40601/api/TypeOfWork/GetTypeDD',
         {
           method: 'GET',
           headers: {
@@ -858,7 +855,7 @@ class TicketService {
       Common.log('🔧 Getting Work Types for category:', typeId);
 
       const res = await fetch(
-        `http://mob.gigatel.me:40601/api/TypeOfWork/GetTypeOfWorkDD?id=${typeId}`,
+        `http://mob.giagtel.me:40601/api/TypeOfWork/GetTypeOfWorkDD?id=${typeId}`,
         {
           method: 'GET',
           headers: {
@@ -927,7 +924,7 @@ class TicketService {
       Common.log('📝 Adding Complaint Follow-Up with Issue:', requestPayload);
 
       const res = await fetch(
-        'http://mob.gigatel.me:40601/api/Complaint/AddComplaintFollowUp', // ✅ Correct port
+        'http://mob.giagtel.me:60203/api/Complaint/AddComplaintFollowUp', // ✅ Correct port
         {
           method: 'POST',
           headers: {
@@ -965,7 +962,7 @@ class TicketService {
       Common.log('📋 Getting Follow-Up List for:', ticketId);
 
       const response = await fetch(
-        `http://mob.gigatel.me:40501/api/Tickets/FollowUpList?ticketId=${ticketId}`,
+        `http://mob.giagtel.me:60203/api/Tickets/FollowUpList?ticketId=${ticketId}`,
         {
           method: 'GET',
           headers: {
@@ -1003,7 +1000,7 @@ class TicketService {
       Common.log('📋 Getting RFO Master Dropdown...');
 
       const response = await fetch(
-        'http://mob.gigatel.me:40501/api/RFOMaster/GetRFOMasterDD',
+        'http://mob.giagtel.me:60203/api/RFOMaster/GetRFOMasterDD',
         {
           method: 'GET',
           headers: {
@@ -1052,7 +1049,7 @@ class TicketService {
       Common.log('🔒 Updating Task RFO (Fixed):', requestPayload);
 
       const response = await fetch(
-        'http://mob.gigatel.me:40501/api/Complaint/UpdateTaskRFO',
+        'http://mob.giagtel.me:60203/api/Complaint/UpdateTaskRFO',
         {
           method: 'POST',
           headers: {
@@ -1088,7 +1085,7 @@ class TicketService {
   async getOldIRList(ticketId: string) {
     try {
       const response = await fetch(
-        'http://mob.gigatel.me:40501/api/Complaint/GetOldIRList',
+        'http://mob.giagtel.me:60203/api/Complaint/GetOldIRList',
         {
           method: 'POST',
           headers: {
@@ -1122,7 +1119,7 @@ class TicketService {
   async createNewIR(irData: any) {
     try {
       const response = await fetch(
-        'http://mob.gigatel.me:40501/api/Complaint/CreateNewIR',
+        'http://mob.giagtel.me:60203/api/Complaint/CreateNewIR',
         {
           method: 'POST',
           headers: {

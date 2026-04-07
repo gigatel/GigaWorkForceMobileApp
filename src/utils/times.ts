@@ -24,7 +24,6 @@ export const isWithinAllowedTime = (
   minutesBefore: number
 ): boolean => {
   const [hour, minute] = timeString.split(':').map(Number);
-
   const now = new Date();
   const targetTime = new Date(
     now.getFullYear(),
@@ -33,12 +32,9 @@ export const isWithinAllowedTime = (
     hour,
     minute
   );
-
   const earliestAllowedTime = new Date(targetTime.getTime() - minutesBefore * 60 * 1000);
-
   return now >= earliestAllowedTime;
 };
-
 /**
  * Checks if the current system time is within the duty shift time range (startTime to endTime).
  * @param startTime - Start time in HH:mm format (e.g., "09:00")

@@ -16,13 +16,12 @@ import ImagePicker, {
 import {COLORS, IMAGES, SIZE} from '@res';
 import {useDispatch} from 'react-redux';
 import type {StoreDispatch} from '@reducers';
-import {closeTicketFollowup} from '@slices/tickets.slice';
+import {closeTicketFollowup, holdTicketApi} from '@slices/tickets.slice';
 import {useRoute, useNavigation} from '@react-navigation/native';
 import type {RouteProp} from '@react-navigation/native';
 import type {RootStackParamList} from '@navigation/navigator';
 import CheckBox from '@react-native-community/checkbox';
 import {useSelector} from 'react-redux';
-
 import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {Preferences, Location, Common} from '@utils';
 import type {DataType} from '@types';
@@ -39,12 +38,12 @@ type Props = {
   assignTaskId?: number;
 };
 
-type StartTicketRouteProp = RouteProp<RootStackParamList, 'CloseTicketScreen'>;
+type StartTicketRouteProp = RouteProp<RootStackParamList, 'HoldTicketScreen'>;
 
 const DEFAULT_ASSIGN_TASK_ID = 8256;
 const ADDR_ERR = 'Unable to fetch current location ...';
 
-const CloseTicketScreen: React.FC<Props> = ({
+const HoldTicketScreen: React.FC<Props> = ({
   onSubmit,
   onCancel,
   assignTaskId,
@@ -95,15 +94,15 @@ const CloseTicketScreen: React.FC<Props> = ({
   };
 
   useEffect(() => {
-    console.log('[CloseTicketScreen] route params raw:', route?.params);
-    console.log('[CloseTicketScreen] ticket summary:', {
+    console.log('[HoldTicketScreen] route params raw:', route?.params);
+    console.log('[HoldTicketScreen] ticket summary:', {
       LinkId: ticket?.LinkId,
       assignId: ticket?.assignId,
       cutLocation: ticket?.cutLocation,
     });
-    console.log('[CloseTicketScreen] route.assignTaskId:', routeAssignTaskId);
-    console.log('[CloseTicketScreen] prop.assignTaskId:', assignTaskId);
-    console.log('[CloseTicketScreen] from:', from);
+    console.log('[HoldTicketScreen] route.assignTaskId:', routeAssignTaskId);
+    console.log('[HoldTicketScreen] prop.assignTaskId:', assignTaskId);
+    console.log('[HoldTicketScreen] from:', from);
   }, [route?.params, ticket, routeAssignTaskId, assignTaskId, from]);
 
   // ---- Local UI state ----
@@ -274,13 +273,12 @@ const CloseTicketScreen: React.FC<Props> = ({
     () => Boolean(address && address !== ADDR_ERR),
     [address],
   );
-
   const isValid = useMemo(() => {
-    const hasTwoPhotos = photos.length === 2;
     const remarksOk = remarks.trim().length >= 3;
-    return addressOk && hasTwoPhotos && remarksOk;
-  }, [addressOk, photos, remarks]);
-
+    const rfoOk = Boolean(selectedRFO);
+    const materialOk = status === 'yes' ? materialName.trim().length > 0 : true; // only required when YES
+    return rfoOk && remarksOk && materialOk;
+  }, [selectedRFO, remarks, status, materialName]);
   // ---- API transforms ----
   const toApiImage = (img?: PickerImage) => {
     if (!img) return undefined;
@@ -292,28 +290,24 @@ const CloseTicketScreen: React.FC<Props> = ({
       imageExtention: getExtFromMime(anyImg?.mime),
     };
   };
-
   // ⬇️ Resolve assignTaskId (ticket > route > prop > default)
   const effectiveAssignTaskId = useMemo(() => {
     const fromTicket =
       typeof ticket?.assignId === 'number' && Number.isFinite(ticket.assignId)
         ? ticket.assignId
         : undefined;
-
     const fromRoute =
       typeof routeAssignTaskId === 'number' &&
       Number.isFinite(routeAssignTaskId)
         ? routeAssignTaskId
         : undefined;
-
     const fromProp =
       typeof assignTaskId === 'number' && Number.isFinite(assignTaskId)
         ? assignTaskId
         : undefined;
-
     const finalVal =
       fromTicket ?? fromRoute ?? fromProp ?? DEFAULT_ASSIGN_TASK_ID;
-    console.log('[CloseTicketScreen] effectiveAssignTaskId:', {
+    console.log('[HoldTicketScreen] effectiveAssignTaskId:', {
       fromTicket,
       fromRoute,
       fromProp,
@@ -321,7 +315,6 @@ const CloseTicketScreen: React.FC<Props> = ({
     });
     return finalVal;
   }, [ticket?.assignId, routeAssignTaskId, assignTaskId]);
-
   // ✅ Read empId from Preferences
   const empId = useMemo(() => {
     const raw = Preferences?.getData?.('EMPLOYEE_ID');
@@ -331,17 +324,6 @@ const CloseTicketScreen: React.FC<Props> = ({
 
   // ---- Submit ----
   const handleStartTicket = useCallback(async () => {
-    if (!addressOk) {
-      Alert.alert(
-        'Missing address',
-        'Please tap Fetch to get current address.',
-      );
-      return;
-    }
-    if (photos.length < 2) {
-      Alert.alert('Photos required', 'Please add exactly 2 photos.');
-      return;
-    }
     if (remarks.trim().length < 3) {
       Alert.alert('Remarks required', 'Please enter at least 3 characters.');
       return;
@@ -354,43 +336,31 @@ const CloseTicketScreen: React.FC<Props> = ({
     }
 
     // 🔥 IF status = YES validate material name
-    if (status === 'yes' && materialName.trim().length < 1) {
-      Alert.alert('Material Required', 'Please enter material name.');
-      return;
-    }
 
     try {
       setSubmitting(true);
 
-      const img1 = toApiImage(photos[0]);
-      const img2 = toApiImage(photos[1]);
-
-      const latStr = lat != null ? String(lat) : '';
-      const lngStr = lng != null ? String(lng) : '';
-
       const res = await dispatch(
-        closeTicketFollowup({
-          empId,
+        holdTicketApi({
           assignTaskId: effectiveAssignTaskId,
-          address,
           rfoId: selectedRFO, // ⭐ Added
           rfO_materialName: status === 'yes' ? materialName.trim() : '', // ⭐ Added
           remark: remarks.trim(),
-          lat: latStr,
-          lng: lngStr,
-          image1: img1,
-          image2: img2,
         }),
       ).unwrap();
+
       console.log('[FOLLOWUP RESPONSE]', res);
+
+      // navigation.goBack();
       if (res?.success) {
-        Common.showToast('Ticket Closed successfully.');
+        Common.showToast('Ticket Hold successfully.');
+        // navigation.navigate('TicketsList', {refresh: true});
         navigation.reset({
           index: 0,
           routes: [{name: 'TicketsList', params: {refresh: true}}],
         });
       } else {
-        Alert.alert('Error', res?.message || 'Failed to Close Ticket');
+        Alert.alert('Error', res?.message || 'Failed to Hold Ticket');
       }
     } catch (e: any) {
       console.warn('[FOLLOWUP ERROR]', e?.message || e);
@@ -449,7 +419,7 @@ const CloseTicketScreen: React.FC<Props> = ({
         <TouchableOpacity onPress={onCancel} style={styles.backBtn}>
           <Image style={styles.backImage} source={IMAGES.back} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Close Ticket</Text>
+        <Text style={styles.headerTitle}>Hold Ticket</Text>
         <View style={{width: SIZE.MS(24)}} />
       </View>
 
@@ -538,7 +508,7 @@ const CloseTicketScreen: React.FC<Props> = ({
           </View>
         </View>
         {/* Photos (2) */}
-        <View style={styles.card}>
+        {/* <View style={styles.card}>
           <Text style={styles.sectionTitle}>Add Pictures (2)</Text>
           <View style={styles.photosRow}>
             {photos.map((p, idx) => (
@@ -568,7 +538,7 @@ const CloseTicketScreen: React.FC<Props> = ({
           {photos.length < 2 && (
             <Text style={styles.helperText}>Add exactly 2 photos</Text>
           )}
-        </View>
+        </View> */}
         <Text style={styles.checkTxtBox}>Select one checkbox*</Text>
         <View
           style={{
@@ -585,6 +555,7 @@ const CloseTicketScreen: React.FC<Props> = ({
             />
             <Text style={{marginLeft: 8}}>YES</Text>
           </View>
+
           <View
             style={{
               flexDirection: 'row',
@@ -601,7 +572,6 @@ const CloseTicketScreen: React.FC<Props> = ({
             <Text style={{marginLeft: 8}}>NO</Text>
           </View>
         </View>
-
         {status === 'yes' && (
           <View style={styles.card}>
             <Text style={styles.sectionTitle}>Material Name</Text>
@@ -642,7 +612,7 @@ const CloseTicketScreen: React.FC<Props> = ({
             disabled={!isValid || submitting}
             onPress={handleStartTicket}>
             <Text style={styles.startBtnText}>
-              {submitting ? 'SUBMITTING…' : 'Close Ticket'}
+              {submitting ? 'SUBMITTING…' : 'Hold Ticket'}
             </Text>
           </TouchableOpacity>
         </View>
@@ -650,7 +620,7 @@ const CloseTicketScreen: React.FC<Props> = ({
     </View>
   );
 };
-export default CloseTicketScreen;
+export default HoldTicketScreen;
 /* -------------------- STYLES -------------------- */
 const styles = StyleSheet.create({
   container: {flex: 1, backgroundColor: COLORS.BACKGROUND_DEFAULT},

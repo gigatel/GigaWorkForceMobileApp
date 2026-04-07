@@ -20,12 +20,16 @@ export type PrivacyPolicy = NativeStackScreenProps<
 > & PrivacyPolicyParams
 export interface DeveloperPKPScreenParams extends Loading {
 }
+export interface SearchCustomerParams extends Loading {
+
+}
 export type DeveloperPKPScreen = NativeStackScreenProps<
   RootStackParamList,
   'DeveloperPKPScreen'
 > & DeveloperPKPScreenParams
-
-
+export type SearchCustomer = NativeStackScreenProps<
+  RootStackParamList,
+  'SearchCustomer'> & SearchCustomerParams;
 //!=============== Login ===============!//
 export interface LoginParams extends Loading {
 }
@@ -85,7 +89,7 @@ export interface RoadProjectSurveyParams extends Loading {
   isAllTaskSubmitted: boolean
 }
 export interface DistanceCoveredParams extends Loading {
-//
+  //
 }
 export interface PatrollerTaskParams extends Loading {
   taskData: DataType.PatrollerTask | null

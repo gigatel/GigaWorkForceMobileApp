@@ -5,25 +5,26 @@ import {
   StyleSheet,
   TouchableOpacity,
   TextInput,
+  Pressable,
   FlatList,
   RefreshControl,
   Platform,
+  Image,
 } from 'react-native';
 import {useNavigation} from '@react-navigation/native';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {getEmpComplaintsByDate} from '../../store/slices/tickets.slice';
 import {RootStackParamList} from '@navigation/navigator';
-import {COLORS, SIZE} from '@res';
+import {COLORS, IMAGES, SIZE} from '@res';
 import {Screen} from '@organisms';
 import {useTranslation} from 'react-i18next';
 import DatePicker from 'react-native-date-picker';
 import {useDispatch} from 'react-redux';
-
+import {useRoute} from '@react-navigation/native';
 type TicketsListNavigationProp = NativeStackNavigationProp<
   RootStackParamList,
   'TicketsList'
 >;
-
 type Ticket = {
   id: string | number;
   transactionNo: string;
@@ -33,7 +34,9 @@ type Ticket = {
   customerName: string;
   circuitId?: string;
   natureOfFault?: string;
-  circuitFrom?: string;
+  nmsType?: string;
+  popLocation?: string; //added
+  circuitFrom?: string; //added
   circuitTo?: string;
   remark?: string;
   assignedBy?: string;
@@ -42,7 +45,6 @@ type Ticket = {
   pathLocation?: string;
   closedOnSplierSystem?: string; // ✅ added
 };
-
 type ApiTicketItem = {
   id: number;
   complaintCode: string;
@@ -60,15 +62,15 @@ type ApiTicketItem = {
   assignTaskId: number;
   startedOn: string | null;
   startedByName: string | null;
+  nmsType: string | null;
+  popLocation: string | null;
 };
-
 const formatDate = (d: Date) =>
   d.toLocaleDateString('en-GB', {
     day: '2-digit',
     month: 'short',
     year: 'numeric',
   });
-
 const TicketsList: React.FC = () => {
   const {t} = useTranslation();
   const navigation = useNavigation<TicketsListNavigationProp>();
@@ -80,27 +82,33 @@ const TicketsList: React.FC = () => {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [showDatePicker, setShowDatePicker] = useState(false);
-
   // ✅ Only run timer if open tickets exist
   useEffect(() => {
     const hasOpenTickets = tickets.some(t => !t.closedOnSplierSystem);
     if (!hasOpenTickets) return;
-
     const interval = setInterval(() => {
       setCurrentTime(new Date());
     }, 1000);
-
     return () => clearInterval(interval);
   }, [tickets]);
-
   const getStatusColor = (status?: string) => {
     const s = (status || '').toLowerCase();
-    if (s.includes('assign')) return COLORS.SUCCESS;
-    if (s.includes('start')) return COLORS.PRIMARY;
-    if (s.includes('in progress')) return COLORS.SUCCESS;
-    if (s.includes('complete') || s.includes('resolved')) return COLORS.SUCCESS;
-    return COLORS.TEXT_MEDIUM;
+
+    if (s === 'initial') return COLORS.PRIMARY; // BLUE
+    if (s === 'assigned') return COLORS.SUCCESS; // GREEN
+    if (s === 'acknowledge') return COLORS.SUCCESS; // GREEN
+    if (s === 'travel start') return COLORS.SUCCESS; // GREEN
+    if (s === 'travel stop') return COLORS.ACCENT_ORANGE; // ORANGE
+    if (s === 'ticket hold') return COLORS.ACCENT_ORANGE; // ORANGE
+    if (s === 'in progress') return COLORS.SUCCESS; // GREEN
+    if (s === 'closed by system') return COLORS.ERROR; // RED
+    if (s === 'closed by splicer') return COLORS.ERROR; // RED
+    if (s === 'task complete') return COLORS.ERROR; // RED
+
+    return COLORS.TEXT_MEDIUM; // default grey
   };
+
+  const route = useRoute();
 
   const getPriorityFromAlarm = (alarmType?: string): Ticket['priority'] => {
     const a = (alarmType || '').toUpperCase();
@@ -149,13 +157,11 @@ const TicketsList: React.FC = () => {
   const mapApiItemToTicket = (it: ApiTicketItem): Ticket => {
     const assignedDate =
       it.assignedOn ?? it.statusUpdatedOn ?? new Date().toISOString();
-
     // ✅ Cleanly convert null → undefined
     const closedOnSplierSystem: string | undefined =
       it.status === 'Closed By Splicer' && it.statusUpdatedOn
         ? it.statusUpdatedOn
         : undefined;
-
     return {
       id: it.id,
       transactionNo: it.complaintCode,
@@ -164,11 +170,13 @@ const TicketsList: React.FC = () => {
       status: it.status || 'Assigned',
       customerName: it.routeName || '-',
       natureOfFault: it.alarmType || '-',
+      popLocation: it.popLocation || '-',
+      nmsType: it.nmsType || '-',
       assignedBy: it.assignedByName || it.statusUpdatedByName || '-',
       assignedTo: it.assignedTo || '-',
       linkName: it.routeName || '-',
       pathLocation: it.latLng || '-',
-      closedOnSplierSystem, // ✅ type-safe assignment
+      closedOnSplierSystem,
     };
   };
 
@@ -197,6 +205,11 @@ const TicketsList: React.FC = () => {
   useEffect(() => {
     loadTickets(true);
   }, [selectedDate]);
+  useEffect(() => {
+    if (route.params?.refresh) {
+      loadTickets(true);
+    }
+  }, [route.params?.refresh]);
 
   const filteredTickets = useMemo(() => {
     const q = searchText.trim().toLowerCase();
@@ -207,17 +220,17 @@ const TicketsList: React.FC = () => {
         (t.customerName || '').toLowerCase().includes(q) ||
         (t.circuitId || '').toLowerCase().includes(q) ||
         (t.natureOfFault || '').toLowerCase().includes(q) ||
+        (t.popLocation || '').toLowerCase().includes(q) ||
         (t.assignedTo || '').toLowerCase().includes(q) ||
         (t.assignedBy || '').toLowerCase().includes(q) ||
         (t.linkName || '').toLowerCase().includes(q) ||
         (t.pathLocation || '').toLowerCase().includes(q),
     );
   }, [tickets, searchText]);
-
   const handleTicketPress = (ticket: Ticket) => {
-    navigation.navigate('TicketDetails', {ticketId: ticket.id});
+    // navigation.navigate('TicketDetails', {ticketId: ticket.id});
+    navigation.navigate('TicketDetails', {ticketId: String(ticket.id)});
   };
-
   const Field = ({
     label,
     value,
@@ -248,9 +261,7 @@ const TicketsList: React.FC = () => {
   const renderTicket = ({item, index}: {item: Ticket; index: number}) => {
     const statusColor = getStatusColor(item.status);
     return (
-      <TouchableOpacity
-        onPress={() => handleTicketPress(item)}
-        activeOpacity={0.8}>
+      <Pressable onPress={() => handleTicketPress(item)} activeOpacity={0.8}>
         <View style={styles.cardRow}>
           <View style={[styles.leftStrip, {backgroundColor: statusColor}]} />
           <View style={styles.card}>
@@ -291,12 +302,12 @@ const TicketsList: React.FC = () => {
                 </Text>
               </View>
             </View>
-
             <View style={styles.grid}>
               <Field label="Link Name" value={item.linkName} />
               <Field label="Issue Type" value={item.natureOfFault} highlight />
+              <Field label="Nms Type" value={item.nmsType} highlight />
+              <Field label="Pop Location" value={item.popLocation} highlight />
             </View>
-
             <View style={styles.footerCompact}>
               <Text style={styles.footerLabel} numberOfLines={1}>
                 By:{' '}
@@ -306,24 +317,39 @@ const TicketsList: React.FC = () => {
                 To:{' '}
                 <Text style={styles.footerValue}>{item.assignedTo || '-'}</Text>
               </Text>
-              <TouchableOpacity
+              <Pressable
                 style={styles.viewBtn}
                 onPress={() => handleTicketPress(item)}>
                 <Text style={styles.viewBtnText}>Open Ticket</Text>
-              </TouchableOpacity>
+              </Pressable>
             </View>
           </View>
         </View>
-      </TouchableOpacity>
+      </Pressable>
     );
   };
 
   return (
-    <Screen statusBgColor={COLORS.PRIMARY} preset="scroll">
+    <Screen statusBgColor={COLORS.PRIMARY}>
       <View style={styles.hero}>
         <View style={styles.headerContent}>
-          <Text style={styles.title}>Complaints</Text>
-          <Text style={styles.subtitle}>Track Complaints</Text>
+          <View style={{flexDirection: 'row', alignItems: 'center'}}>
+            <TouchableOpacity
+              activeOpacity={0.8}
+              onPress={() => {
+                if (navigation.canGoBack()) {
+                  navigation.goBack();
+                } else {
+                  navigation.navigate('BottomTab', {screen: 'Home'});
+                }
+              }}>
+              <Image source={IMAGES?.back} style={styles.backIcon} />
+            </TouchableOpacity>
+            <View>
+              <Text style={styles.title}>Complaints</Text>
+              <Text style={styles.subtitle}>Track Complaints</Text>
+            </View>
+          </View>
         </View>
 
         <View style={styles.searchSection}>
@@ -336,17 +362,17 @@ const TicketsList: React.FC = () => {
               onChangeText={setSearchText}
             />
           </View>
-          <TouchableOpacity
+          <Pressable
             style={styles.dateBtn}
             onPress={() => setShowDatePicker(true)}>
             <Text style={styles.dateText}>{formatDate(selectedDate)}</Text>
-          </TouchableOpacity>
+          </Pressable>
         </View>
       </View>
-
       <FlatList
         data={filteredTickets}
         renderItem={renderTicket}
+        showsVerticalScrollIndicator={false}
         keyExtractor={(item, index) => `${item.id}-${index}`}
         contentContainerStyle={styles.list}
         refreshControl={
@@ -366,7 +392,6 @@ const TicketsList: React.FC = () => {
           </View>
         }
       />
-
       <DatePicker
         modal
         open={showDatePicker}
@@ -382,9 +407,7 @@ const TicketsList: React.FC = () => {
     </Screen>
   );
 };
-
 export default TicketsList;
-
 // -------- styles (unchanged) ----------
 const styles = StyleSheet.create({
   hero: {
@@ -441,13 +464,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 1,
     backgroundColor: COLORS.WHITE,
-    justifyContent: 'space-around',
+    justifyContent: 'space-between', // FIXED
   },
   cardIndex: {
     color: COLORS.PRIMARY,
     fontWeight: '700',
     fontSize: SIZE.MS(14),
     marginRight: 4,
+    flexShrink: 1, // ADD THIS
   },
   ticketId: {
     color: COLORS.TEXT_DARKER,
@@ -479,6 +503,7 @@ const styles = StyleSheet.create({
     paddingVertical: 1,
     borderRadius: 5,
     marginRight: 5,
+    maxWidth: '40%', // ADD THIS
   },
   badgeBrand: {backgroundColor: COLORS.PRIMARY_DARK},
   badgeTimer: {backgroundColor: COLORS.ACCENT_ORANGE},
@@ -530,6 +555,14 @@ const styles = StyleSheet.create({
     color: COLORS.WHITE,
     fontWeight: '700',
     fontSize: SIZE.MS(12),
+  },
+  backIcon: {
+    height: SIZE.MS(20),
+    width: SIZE.MS(20),
+    resizeMode: 'contain',
+    marginHorizontal: 10,
+    color: COLORS.WHITE,
+    tintColor: COLORS.WHITE,
   },
   empty: {paddingVertical: 40, alignItems: 'center'},
   emptyText: {color: COLORS.TEXT_LIGHT, fontSize: SIZE.MS(14)},

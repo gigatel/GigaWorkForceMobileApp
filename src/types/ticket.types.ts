@@ -12,6 +12,8 @@ export interface TicketDataGtpl {
   data: string;
   status: string;
   assignedTo: string;
+  nmsType: string;
+  popLocation: string;
   assignedByName: string;
   assignedOn: string;
   moduleName: string;
@@ -63,7 +65,6 @@ export interface TicketDataGtpl {
   assignId:number;
   address: string;
 }
-
  export interface TicketDetailsData {
   id: string;
   transactionNo: string;
@@ -82,6 +83,8 @@ export interface TicketDataGtpl {
   nocRemark: string;
   closureRemark: string;
   rfo: string;
+  nmsType: string;
+  popLocation: string;
   priority: string;
   company: string;
   isStarted: boolean;
@@ -102,12 +105,10 @@ export interface TicketDataGtpl {
     type: string;
   }[];
 }
-
 // UI-friendly processed data
 export interface ProcessedTicketData {
   // From TicketDataGtpl
   raw: TicketDataGtpl;
-
   // Parsed from 'data' field
   customerName: string;
   circuitId: string;
@@ -118,14 +119,12 @@ export interface ProcessedTicketData {
   contactPersonMobile: string;
   remark: string;
   taskType: string;
-
   // UI computed fields
   displayStatus: 'assigned' | 'in-progress' | 'completed';
   priority: 'high' | 'medium' | 'low';
   isStarted: boolean;
   hasFollowUps: boolean;
 }
-
 export interface FollowUpDataGtpl {
   assignTaskId: string;
   empId: string;
@@ -142,17 +141,14 @@ export interface FollowUpDataGtpl {
   image?: FollowUpImage;
   complaintFollowImage?: ReportImagesRequest[];
 }
-
 export interface FollowUpImage {
   imageExtention: string;
   imageData: string;
 }
-
 export interface ReportImagesRequest {
   imageUrl: string;
   imageExtention: string;
 }
-
 // Chamber selection data
 export interface NearestChamberData {
   chamberId: string;
@@ -233,36 +229,29 @@ export interface TicketData {
   customerName: string;
   customerMobile: string;
   ticketType: 'complaint' | 'task';
-
   // Enhanced fields for Java app matching
   taskType?: 'circuit' | 'route' | 'miscellaneous';
   hasChamber?: boolean;
   chamberCount?: number;
-
   // Location Info
   circuitFrom: string;
   circuitTo: string;
   circuitId: string;
-
   // Assignment Info
   assignedTo: string;
   assignedBy: string;
-
   // Contact Info
   contactPersonName: string;
   contactPersonMobile: string;
-
   // Technical Details
   natureOfFault: string;
   modeOfComplaint: string;
   otdrLength: string;
   remark: string;
-
   // Status Info
   isStarted: boolean;
   startTime: string | null;
   endTime: string | null;
-
   // Raw data for detailed view
   rawData: RawTicketData;
   formData: ParsedFormData;
@@ -294,7 +283,6 @@ export interface ChamberData {
   address?: string;
   distance?: number;
 }
-
 export interface FollowUpData {
   id?: string;
   ticketId: string;

@@ -23,6 +23,7 @@ import {
   selectTicketDetailLoading,
   acknowledgeApi,
   travelStartApi,
+  travelStopApi,
 } from '@slices/tickets.slice';
 import type {StoreDispatch, RootState} from '@reducers';
 import type {TicketDetailsData} from '../../types/ticket.types';
@@ -56,6 +57,7 @@ const parseLatLng = (s?: string | null): {lat: number; lng: number} | null => {
   return Number.isFinite(lat) && Number.isFinite(lng) ? {lat, lng} : null;
 };
 function normalizeApiItem(item: any): TicketDetailsData {
+  console.log('normalizeApiItem:', {item});
   const parsed = parseLatLng(item?.latLng ?? item?.cutLocation);
   return {
     id: item.id,
@@ -68,6 +70,8 @@ function normalizeApiItem(item: any): TicketDetailsData {
     circuitTo: '',
     assignId: item.assignTaskId,
     natureOfFault: item.alarmType,
+    nmsType: item.nmsType,
+    popLocation: item.popLocation, //added
     nearestChamber: '',
     cutLocation: item.latLng ?? item.cutLocation ?? '',
     cutLat: parsed?.lat ?? null,
@@ -126,21 +130,30 @@ const TicketDetailsScreen: React.FC = () => {
   );
   const [travelStartTime, setTravelStartTime] = useState<Date | null>(null);
   const [travelTimer, setTravelTimer] = useState('00:00:00');
-
-  const [travelElapsed, setTravelElapsed] = useState('00:00:00');
-  /* -------- reverse geocode helper (no hooks inside conditions) -------- */
-  // Call this function after API success
+  const [isTravelActive, setIsTravelActive] = useState(false);
+  /* -------- Process Status List -------- */
   const processStatusList = (statusList: any[]) => {
-    if (!statusList) return;
-
-    const startStatus = statusList.find(s => s.status === 'Start');
-
-    if (startStatus?.statusUpdatedOn) {
+    if (!statusList || !Array.isArray(statusList)) return;
+    // Find "Start" status (Travel Start)
+    const startStatus = statusList.find(s => {
+      const st = s.status?.toLowerCase().trim();
+      return st === 'start' || st === 'travel start';
+    });
+    // Find "Stop" status (Travel Stop)
+    const stopStatus = statusList.find(s => s.status?.toLowerCase() === 'stop');
+    if (startStatus?.statusUpdatedOn && !stopStatus) {
+      // Travel started and not stopped yet
       console.log('⏳ Travel Start Time Found:', startStatus.statusUpdatedOn);
       setTravelStartTime(new Date(startStatus.statusUpdatedOn));
+      setIsTravelActive(true);
+    } else if (stopStatus) {
+      // Travel has been stopped
+      console.log('🛑 Travel Stopped');
+      setIsTravelActive(false);
+      setTravelStartTime(null);
     }
   };
-
+  /* -------- Reverse Geocode Helper -------- */
   const getAddressFromLatLng = useCallback(
     async (lat: number, lng: number): Promise<string> => {
       try {
@@ -168,7 +181,7 @@ const TicketDetailsScreen: React.FC = () => {
     },
     [],
   );
-  /* ---------------- refetch (API) ---------------- */
+  /* ---------------- Refetch (API) ---------------- */
   const refetch = useCallback(() => {
     dispatch(getEmpComplaintDetails({id: ticketId, refresh: true}))
       .unwrap()
@@ -176,7 +189,7 @@ const TicketDetailsScreen: React.FC = () => {
         const formData = res?.item?.formData;
         const statusList = res?.item?.statusList;
 
-        // ⭐ FIX — Start status से SLA time set करो
+        // Process status list for travel timer
         if (statusList && Array.isArray(statusList)) {
           processStatusList(statusList);
         }
@@ -187,26 +200,21 @@ const TicketDetailsScreen: React.FC = () => {
       })
       .catch(() => {});
   }, [dispatch, ticketId]);
-
   /* ---------------- Effects (ALWAYS before any return) ---------------- */
-
   // on mount / id change
   useEffect(() => {
     refetch();
   }, [refetch]);
-  // Timer Logic
+  // Timer Logic - Only runs when travel is active
   useEffect(() => {
     let interval: any;
-
-    if (travelStartTime) {
+    if (travelStartTime && isTravelActive) {
       interval = setInterval(() => {
         const now = new Date();
         const diff = now.getTime() - travelStartTime.getTime();
-
         const hours = Math.floor(diff / (1000 * 60 * 60));
         const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
         const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-
         setTravelTimer(
           `${hours.toString().padStart(2, '0')}:` +
             `${minutes.toString().padStart(2, '0')}:` +
@@ -214,17 +222,16 @@ const TicketDetailsScreen: React.FC = () => {
         );
       }, 1000);
     }
-
-    return () => clearInterval(interval);
-  }, [travelStartTime]);
-
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [travelStartTime, isTravelActive]);
   // redux detail से sync
   useEffect(() => {
     if (reduxDetail && typeof reduxDetail === 'object') {
       setTicketDetails(normalizeApiItem(reduxDetail));
     }
   }, [reduxDetail]);
-
   // address resolve
   useEffect(() => {
     let cancelled = false;
@@ -261,21 +268,31 @@ const TicketDetailsScreen: React.FC = () => {
       cancelled = true;
     };
   }, [ticketDetails, getAddressFromLatLng]);
-
-  /* ---------------- Derived values (no hooks below this) ---------------- */
-
   const status = (ticketDetails?.status || '').toLowerCase().trim();
+  // LATEST STATUS FROM STATUS LIST
 
-  const showAck = status === 'assigned';
+  const latestStatus = useMemo(() => {
+    const list = reduxDetail?.statusList;
+    if (!list || !Array.isArray(list) || list.length === 0) return null;
+    const sorted = [...list].sort(
+      (a, b) =>
+        new Date(b.statusUpdatedOn).getTime() -
+        new Date(a.statusUpdatedOn).getTime(),
+    );
+    return sorted[0]?.status?.toLowerCase().trim() || null;
+  }, [reduxDetail]);
+  /* ---------------- Derived values (no hooks below this) ---------------- */
+  const showAcknowledge = status === 'assigned';
   const showTravelStart = status === 'acknowledge';
-  const showActivityStart =
-    status === 'travel started' || status === 'in progress';
-  const disableClose = [
-    'closed',
-    'task complete',
-    'closed by splicer',
-  ].includes(status);
-
+  const showTravelStop = status === 'travel start' || status === 'start';
+  const showActivityStartAndHold =
+    status === 'travel stop' || status === 'stop';
+  const showActivityStartAndClose = status === 'ticket hold';
+  const showOnlyActivityCloseAndHold = status === 'in progress';
+  const disableAllButtons =
+    status === 'closed by system' ||
+    status === 'closed by splicer' ||
+    status === 'task complete';
   const coords = useMemo(() => {
     if (
       ticketDetails?.cutLat != null &&
@@ -294,20 +311,31 @@ const TicketDetailsScreen: React.FC = () => {
     ticketDetails?.cutLng,
     ticketDetails?.cutLocation,
   ]);
+  const getStatusColor = (s: string = '') => {
+    const status = s.toLowerCase().trim();
 
-  const getStatusColor = (s: string) =>
-    ({
-      assigned: COLORS.WARNING,
-      started: COLORS.PRIMARY,
-      completed: COLORS.SUCCESS,
-    }[s?.toLowerCase()] ?? COLORS.TEXT_MEDIUM);
+    if (status === 'initial') return COLORS.PRIMARY; // BLUE
+    if (status === 'assigned') return COLORS.SUCCESS; // GREEN
+    if (status === 'acknowledge') return COLORS.SUCCESS; // GREEN
+    if (status === 'travel start' || status === 'start') return COLORS.SUCCESS; // GREEN
+    if (status === 'travel stop' || status === 'stop')
+      return COLORS.ACCENT_ORANGE; // ORANGE
+    if (status === 'ticket hold') return COLORS.ACCENT_ORANGE; // VIOLET
+    if (status === 'in progress') return COLORS.SUCCESS; // GREEN
+    if (
+      status === 'closed by system' ||
+      status === 'closed by splicer' ||
+      status === 'task complete'
+    )
+      return COLORS.ERROR; // RED
+    return COLORS.TEXT_MEDIUM; // DEFAULT GREY
+  };
 
   const getCutQuery = (): string => {
     const txt = (ticketDetails?.cutLocation || '').trim();
     if (txt && !parseLatLng(txt)) return txt;
     return ticketDetails?.linkName || 'Location';
   };
-
   const safeOpen = async (url: string) => {
     try {
       await Linking.openURL(url);
@@ -316,11 +344,9 @@ const TicketDetailsScreen: React.FC = () => {
       return false;
     }
   };
-
   const openDirections = async () => {
     const label = getCutQuery();
     const p = coords;
-
     if (!p) {
       await safeOpen(
         `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
@@ -329,12 +355,10 @@ const TicketDetailsScreen: React.FC = () => {
       );
       return;
     }
-
     await safeOpen(
       `https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lng}&travelmode=driving`,
     );
   };
-
   const formatDate = (dateStr: string): string => {
     if (!dateStr) return '';
     try {
@@ -362,35 +386,6 @@ const TicketDetailsScreen: React.FC = () => {
       return dateStr;
     }
   };
-
-  /* ---------------- Handlers (no hooks inside) ---------------- */
-
-  const handleStart = () => {
-    if (!ticketDetails) return;
-    const payload = JSON.parse(JSON.stringify(ticketDetails));
-    navigation.navigate('StartTicketScreen', {
-      from: 'ticket-details',
-      ticket: payload,
-    });
-  };
-
-  const handleTravelStart = () => {
-    if (!ticketDetails) return;
-
-    dispatch(
-      travelStartApi({
-        assignTaskId: ticketDetails.assignId,
-      }),
-    )
-      .unwrap()
-      .then(() => {
-        Common.showToast('Travel started!');
-        setTravelStartTime(Date.now()); // ⬅️ TIMER START HERE
-        refetch();
-      })
-      .catch(err => Common.showToast(err?.message ?? 'Travel start failed!'));
-  };
-
   const handleAcknowledge = () => {
     if (!ticketDetails) return;
     dispatch(
@@ -406,7 +401,46 @@ const TicketDetailsScreen: React.FC = () => {
       })
       .catch(err => Common.showToast(err?.message ?? 'Acknowledge failed!'));
   };
-  const handleClose = () => {
+  const handleTravelStart = () => {
+    if (!ticketDetails) return;
+    dispatch(
+      travelStartApi({
+        assignTaskId: ticketDetails.assignId,
+      }),
+    )
+      .unwrap()
+      .then(() => {
+        Common.showToast('Travel started!');
+        setTravelStartTime(new Date());
+        setIsTravelActive(true);
+        refetch();
+      })
+      .catch(err => Common.showToast(err?.message ?? 'Travel start failed!'));
+  };
+  const handleTravelStop = () => {
+    if (!ticketDetails) return;
+    dispatch(
+      travelStopApi({
+        assignTaskId: ticketDetails.assignId,
+      }),
+    )
+      .unwrap()
+      .then(() => {
+        Common.showToast('Travel stopped!');
+        setIsTravelActive(false);
+        refetch();
+      })
+      .catch(err => Common.showToast(err?.message ?? 'Travel start failed!'));
+  };
+  const handleActivityStart = () => {
+    if (!ticketDetails) return;
+    const payload = JSON.parse(JSON.stringify(ticketDetails));
+    navigation.navigate('StartTicketScreen', {
+      from: 'ticket-details',
+      ticket: payload,
+    });
+  };
+  const handleActivityClose = () => {
     if (!ticketDetails) return;
     const payload = JSON.parse(JSON.stringify(ticketDetails));
     navigation.navigate('CloseTicketScreen', {
@@ -414,42 +448,52 @@ const TicketDetailsScreen: React.FC = () => {
       ticket: payload,
     });
   };
-
+  const handleTicketHold = () => {
+    if (!ticketDetails) return;
+    const payload = JSON.parse(JSON.stringify(ticketDetails));
+    navigation.navigate('HoldTicketScreen', {
+      from: 'ticket-details',
+      ticket: payload,
+    });
+  };
   /* ---------------- EARLY RETURNS (AFTER ALL HOOKS!) ---------------- */
-
+  // 1. Show loader when initial loading
   if (loading && !ticketDetails) {
     return (
       <SafeAreaView style={styles.centerScreen}>
         <ActivityIndicator size="large" color={COLORS.PRIMARY} />
-        <Text style={styles.loadingText}>Loading ticket details...</Text>
+        <Text style={styles.loadingText}>Fetching ticket details...</Text>
       </SafeAreaView>
     );
   }
-
+  // 2. Show error only when API fails AND we never got any data
   if (error && !ticketDetails) {
     return (
       <SafeAreaView style={styles.centerScreen}>
-        <Text style={styles.errorText}>{error || 'Unable to load ticket'}</Text>
+        <Text style={styles.errorText}>
+          {error || 'Unable to fetch ticket details'}
+        </Text>
         <TouchableOpacity style={styles.retryBtn} onPress={refetch}>
           <Text style={styles.retryText}>Retry</Text>
         </TouchableOpacity>
       </SafeAreaView>
     );
   }
-
-  if (!ticketDetails) {
+  // 3. Only if API returned empty or invalid data
+  if (!loading && !ticketDetails) {
     return (
       <SafeAreaView style={styles.centerScreen}>
-        <Text style={styles.errorText}>Ticket not found</Text>
+        <ActivityIndicator size="large" color={COLORS.PRIMARY} />
+        <Text style={styles.loadingText}>Fetching data…</Text>
       </SafeAreaView>
     );
   }
 
   /* ---------------- Main Render ---------------- */
-
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar backgroundColor={COLORS.PRIMARY} barStyle="light-content" />
+
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity
@@ -480,7 +524,6 @@ const TicketDetailsScreen: React.FC = () => {
                 {formatDate(ticketDetails.createdDate)}
               </Text>
             </View>
-
             <View style={styles.detailRow}>
               <View
                 style={[
@@ -492,7 +535,6 @@ const TicketDetailsScreen: React.FC = () => {
                 </Text>
               </View>
             </View>
-
             <View style={styles.contactRight}>
               <Text style={styles.assignedLabel}>Assigned by</Text>
               <Text style={styles.assignedName}>
@@ -501,7 +543,6 @@ const TicketDetailsScreen: React.FC = () => {
             </View>
           </View>
         </View>
-
         {/* Tabs */}
         <View style={styles.tabsHeader}>
           <TouchableOpacity
@@ -518,7 +559,6 @@ const TicketDetailsScreen: React.FC = () => {
               Ticket Details
             </Text>
           </TouchableOpacity>
-
           <TouchableOpacity
             style={[
               styles.tab,
@@ -534,7 +574,6 @@ const TicketDetailsScreen: React.FC = () => {
             </Text>
           </TouchableOpacity>
         </View>
-
         {/* TAB CONTENT */}
         {activeTab === 'TICKET_DETAILS' ? (
           <View style={styles.tabContent}>
@@ -543,16 +582,26 @@ const TicketDetailsScreen: React.FC = () => {
                 <Text style={styles.purpleLabel}>Link ID</Text>
                 <Text style={styles.detailValue}>{ticketDetails.LinkId}</Text>
               </View>
-
               <View style={styles.detailRow}>
                 <Text style={styles.purpleLabel}>Link Name</Text>
                 <Text style={styles.detailValue}>{ticketDetails.linkName}</Text>
               </View>
-
               <View style={styles.detailRow}>
                 <Text style={styles.purpleLabel}>Fault Type</Text>
                 <Text style={[styles.detailValue, {color: 'red'}]}>
                   {ticketDetails.natureOfFault}
+                </Text>
+              </View>
+              <View style={styles.detailRow}>
+                <Text style={styles.purpleLabel}>Nms Type</Text>
+                <Text style={[styles.detailValue, {color: 'red'}]}>
+                  {ticketDetails.nmsType}
+                </Text>
+              </View>
+              <View style={styles.detailRow}>
+                <Text style={styles.purpleLabel}>Pop Location</Text>
+                <Text style={[styles.detailValue, {color: 'red'}]}>
+                  {ticketDetails.popLocation}
                 </Text>
               </View>
 
@@ -561,10 +610,8 @@ const TicketDetailsScreen: React.FC = () => {
                 <Text style={styles.purpleLabel}>Cut Location</Text>
                 <View style={styles.valueBlock}>
                   <Text style={styles.detailValue}>
-                    {/* API वाला address + resolved address दोनों में से जो चाहिए वो रख सकते हो */}
                     {ticketDetails.address || address}
                   </Text>
-
                   <View style={styles.actionsRow}>
                     <TouchableOpacity
                       style={styles.actionBtn}
@@ -574,14 +621,12 @@ const TicketDetailsScreen: React.FC = () => {
                   </View>
                 </View>
               </View>
-
               <View style={styles.detailRow}>
                 <Text style={styles.purpleLabel}>Total Distance</Text>
                 <Text style={styles.detailValue}>
                   {Number(ticketDetails.totalDistanceKm).toFixed(3)} mtr
                 </Text>
               </View>
-
               <View style={styles.detailRow}>
                 <Text style={styles.purpleLabel}>Cut Distance</Text>
                 <Text style={styles.detailValue}>
@@ -596,96 +641,119 @@ const TicketDetailsScreen: React.FC = () => {
               <View style={styles.detailRow}>
                 <Text style={styles.purpleLabel}>Contact Name</Text>
                 <Text style={styles.detailValue}>
-                  {ticketDetails.contactPersonName}
+                  {ticketDetails.contactPersonName || 'N/A'}
                 </Text>
               </View>
-
               <View style={styles.detailRow}>
                 <Text style={styles.purpleLabel}>Contact Mobile</Text>
                 <Text style={styles.detailValue}>
-                  {ticketDetails.contactPersonMobile}
+                  {ticketDetails.contactPersonMobile || 'N/A'}
                 </Text>
               </View>
             </View>
           </View>
         )}
-
         {/* STATUS SECTION */}
         <View style={styles.statusChangeSection}>
           <Text style={styles.statusChangeTitle}>
             Change ticket status below
           </Text>
-
           <View style={styles.statusButtons}>
-            {showAck && (
+            {/* 1. Acknowledge Button - Show when status is "Assigned" */}
+            {showAcknowledge && !disableAllButtons && (
               <TouchableOpacity
-                style={[styles.statusBtn, styles.startBtn]}
+                style={[styles.statusBtn, styles.acknowledgeBtn]}
                 onPress={handleAcknowledge}>
                 <Text style={styles.statusBtnText}>Acknowledge</Text>
               </TouchableOpacity>
             )}
-
-            {showTravelStart && (
+            {/* 2. Travel Start Button - Show when status is "Acknowledge" */}
+            {showTravelStart && !disableAllButtons && (
               <TouchableOpacity
-                style={[styles.statusBtn, styles.updateBtn]}
+                style={[styles.statusBtn, styles.travelStartBtn]}
                 onPress={handleTravelStart}>
                 <Text style={styles.statusBtnText}>Travel Start</Text>
               </TouchableOpacity>
             )}
-
-            {showActivityStart && (
+            {/* 3. Travel Stop Button - Show when status is "Start" */}
+            {showTravelStop && !disableAllButtons && (
               <TouchableOpacity
-                style={[styles.statusBtn, styles.startBtn]}
-                onPress={handleStart}>
-                <Text style={styles.statusBtnText}>Activity Start</Text>
+                style={[styles.statusBtn, styles.travelStopBtn]}
+                onPress={handleTravelStop}>
+                <Text style={styles.statusBtnText}>Travel Stop</Text>
               </TouchableOpacity>
             )}
-
-            <TouchableOpacity
-              style={[
-                styles.statusBtn,
-                styles.closeBtn,
-                disableClose && styles.disabledBtn,
-              ]}
-              disabled={disableClose}
-              onPress={handleClose}>
-              <Text style={styles.statusBtnText}>Activity Close</Text>
-            </TouchableOpacity>
+            {/* 4. Activity Start & Close - Show when status is "Stop" */}
+            {showActivityStartAndHold && !disableAllButtons && (
+              <>
+                <TouchableOpacity
+                  style={[styles.statusBtn, styles.activityStartBtn]}
+                  onPress={handleActivityStart}>
+                  <Text style={styles.statusBtnText}>Activity Start</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.statusBtn, styles.activityHoldBtn]}
+                  onPress={handleTicketHold}>
+                  <Text style={styles.statusBtnText}>Ticket Hold</Text>
+                </TouchableOpacity>
+              </>
+            )}
+            {showActivityStartAndClose && !disableAllButtons && (
+              <>
+                <TouchableOpacity
+                  style={[styles.statusBtn, styles.activityStartBtn]}
+                  onPress={handleActivityStart}>
+                  <Text style={styles.statusBtnText}>Activity Restart</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.statusBtn, styles.activityCloseBtn]}
+                  onPress={handleActivityClose}>
+                  <Text style={styles.statusBtnText}>Activity Close</Text>
+                </TouchableOpacity>
+              </>
+            )}
+            {showOnlyActivityCloseAndHold && !disableAllButtons && (
+              <>
+                <TouchableOpacity
+                  style={[styles.statusBtn, styles.activityCloseBtn]}
+                  onPress={handleActivityClose}>
+                  <Text style={styles.statusBtnText}>Activity Close</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.statusBtn, styles.activityHoldBtn]}
+                  onPress={handleTicketHold}>
+                  <Text style={styles.statusBtnText}>Ticket Hold</Text>
+                </TouchableOpacity>
+              </>
+            )}
+            {disableAllButtons && (
+              <View style={styles.disabledMessage}>
+                <Text style={styles.disabledMessageText}>✓ Ticket Closed</Text>
+              </View>
+            )}
+            {/* Show disabled message if ticket is closed */}
           </View>
         </View>
-
+        {/* {(status === 'travel start' || status === 'start') &&
+          (latestStatus === 'travel start' || latestStatus === 'start') && (
+            <View style={styles.timerCard}>
+              <Text style={styles.timerTitle}>🚗 Travel SLA Time</Text>
+              <Text style={styles.timerValue}>{travelTimer}</Text>
+            </View>
+          )} */}
+        {/* Show timer only when status AND latestStatus are Travel Start */}
+        {(status === 'travel start' || status === 'start') &&
+          (latestStatus === 'travel start' || latestStatus === 'start') && (
+            <View style={styles.timerCard}>
+              <Text style={styles.timerTitle}>🚗 Travel SLA Time</Text>
+              {travelTimer === '00:00:00' ? (
+                <ActivityIndicator size="large" color={COLORS.PRIMARY} />
+              ) : (
+                <Text style={styles.timerValue}>{travelTimer}</Text>
+              )}
+            </View>
+          )}
         <View style={styles.bottomSpacing} />
-        {travelStartTime && (
-          <View
-            style={{
-              backgroundColor: COLORS.WHITE,
-              paddingHorizontal: 16,
-              paddingVertical: 12,
-              marginTop: 10,
-              borderWidth: 2,
-              borderColor: COLORS.PRIMARY,
-              borderRadius: 8,
-              alignItems: 'center',
-            }}>
-            <Text
-              style={{
-                fontSize: 18,
-                color: COLORS.PRIMARY,
-                fontWeight: 'bold',
-              }}>
-              Travel SLA Time
-            </Text>
-            <Text
-              style={{
-                marginTop: 6,
-                fontSize: 24,
-                color: COLORS.SUCCESS,
-                fontWeight: 'bold',
-              }}>
-              {travelTimer}
-            </Text>
-          </View>
-        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -701,7 +769,7 @@ const styles = StyleSheet.create({
     paddingVertical: SIZE.MVS(20),
     elevation: 4,
   },
-  ticketLabel: {color: COLORS.BLACK, fontSize: SIZE.MS(16)},
+  ticketLabel: {color: COLORS.BLACK, fontSize: SIZE.MS(16), fontWeight: 'bold'},
   backButton: {padding: SIZE.MS(8)},
   backText: {color: COLORS.WHITE, fontSize: SIZE.MS(20), fontWeight: 'bold'},
   headerCenter: {
@@ -768,7 +836,37 @@ const styles = StyleSheet.create({
     color: COLORS.PRIMARY,
     marginRight: SIZE.MS(6),
   },
-  tabsHeader: {flexDirection: 'row', backgroundColor: COLORS.PRIMARY},
+
+  timerCard: {
+    backgroundColor: COLORS.WHITE,
+    marginHorizontal: SIZE.MS(16),
+    marginTop: SIZE.MVS(12),
+    paddingVertical: SIZE.MVS(16),
+    paddingHorizontal: SIZE.MS(20),
+    borderRadius: SIZE.MS(8),
+    borderWidth: 2,
+    borderColor: COLORS.PRIMARY,
+    alignItems: 'center',
+    elevation: 3,
+  },
+  timerTitle: {
+    fontSize: SIZE.MS(16),
+    color: COLORS.PRIMARY,
+    fontWeight: 'bold',
+    marginBottom: SIZE.MVS(8),
+  },
+  timerValue: {
+    fontSize: SIZE.MS(32),
+    color: COLORS.SUCCESS,
+    fontWeight: 'bold',
+    letterSpacing: 2,
+  },
+
+  tabsHeader: {
+    flexDirection: 'row',
+    backgroundColor: COLORS.PRIMARY,
+    marginTop: SIZE.MVS(8),
+  },
   tab: {
     flex: 1,
     paddingVertical: SIZE.MVS(12),
@@ -786,6 +884,9 @@ const styles = StyleSheet.create({
   detailsSection: {
     paddingHorizontal: SIZE.MS(16),
     paddingVertical: SIZE.MVS(16),
+  },
+  activityHoldBtn: {
+    backgroundColor: '#FF9800', // Orange (Hold Button Theme)
   },
   contactDetailsSection: {
     paddingHorizontal: SIZE.MS(16),
@@ -848,73 +949,40 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: SIZE.MVS(16),
   },
-  statusButtons: {flexDirection: 'row', gap: SIZE.MS(12)},
+  statusButtons: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: SIZE.MS(12),
+  },
   statusBtn: {
     flex: 1,
+    minWidth: '45%',
     paddingVertical: SIZE.MVS(12),
     borderRadius: SIZE.MS(8),
     alignItems: 'center',
+    elevation: 2,
   },
-  startBtn: {backgroundColor: COLORS.SUCCESS},
-  updateBtn: {backgroundColor: COLORS.WARNING},
-  closeBtn: {backgroundColor: COLORS.ERROR},
-  disabledBtn: {backgroundColor: COLORS.DISABLED},
+  acknowledgeBtn: {backgroundColor: '#2196F3'},
+  travelStartBtn: {backgroundColor: '#4CAF50'},
+  travelStopBtn: {backgroundColor: '#FF9800'},
+  activityStartBtn: {backgroundColor: '#9C27B0'},
+  activityCloseBtn: {backgroundColor: COLORS.ERROR},
   statusBtnText: {
     color: COLORS.WHITE,
     fontSize: SIZE.MS(12),
     fontWeight: 'bold',
   },
-  contactDetailsCard: {
-    backgroundColor: COLORS.WHITE,
-    marginHorizontal: SIZE.MS(16),
-    marginTop: SIZE.MVS(16),
-    borderRadius: SIZE.MS(8),
-    borderWidth: 2,
-    borderColor: COLORS.PRIMARY,
-    elevation: 2,
+  disabledMessage: {
+    flex: 1,
+    paddingVertical: SIZE.MVS(16),
+    alignItems: 'center',
   },
-  contactCardHeader: {
-    backgroundColor: COLORS.PRIMARY,
-    paddingHorizontal: SIZE.MS(16),
-    paddingVertical: SIZE.MVS(8),
-    borderTopLeftRadius: SIZE.MS(6),
-    borderTopRightRadius: SIZE.MS(6),
-  },
-  contactCardTitle: {
-    color: COLORS.WHITE,
-    fontSize: SIZE.MS(12),
-    fontWeight: 'bold',
-  },
-  contactCardContent: {padding: SIZE.MS(16)},
-  contactCardLabel: {
+  disabledMessageText: {
+    color: COLORS.SUCCESS,
     fontSize: SIZE.MS(14),
-    color: COLORS.TEXT_MEDIUM,
     fontWeight: 'bold',
-    marginBottom: SIZE.MVS(4),
-    marginTop: SIZE.MVS(8),
   },
-  contactCardValue: {
-    fontSize: SIZE.MS(12),
-    color: COLORS.TEXT_DARK,
-    lineHeight: SIZE.MS(16),
-  },
-
   bottomSpacing: {height: SIZE.MVS(32)},
-
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: COLORS.BACKGROUND_DEFAULT,
-  },
-
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: COLORS.BACKGROUND_DEFAULT,
-    paddingHorizontal: SIZE.MS(32),
-  },
   centerScreen: {
     flex: 1,
     justifyContent: 'center',
@@ -943,5 +1011,4 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
 });
-
 export default TicketDetailsScreen;
