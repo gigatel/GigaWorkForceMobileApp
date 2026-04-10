@@ -4,7 +4,7 @@ import Geolocation, { GeolocationResponse } from '@react-native-community/geoloc
 import { DataType } from '@types';
 import { Linking, Platform } from 'react-native';
 import { isLocationEnabled, promptForEnableLocationIfNeeded } from 'react-native-android-location-enabler';
-import { useState, useEffect } from 'react';
+import { useState,useEffect } from 'react';
 import {
   check,
   checkMultiple,
@@ -61,14 +61,13 @@ export const getAddressFromLatLong = async (): Promise<DataType.GeoAddress> => {
       return { address: 'Address Not Found', lat: 0, long: 0 };
     }
     const { latitude: lat, longitude: long } = info?.coords;
-    const address = await olaReverseGeocode(lat, long);
+const address = await olaReverseGeocode(lat, long);
 
-    return {
-      address: address || 'Address Not Found',
-      lat,
-      long,
-    }
-  } catch (err: any) {
+return {
+  address: address || 'Address Not Found',
+  lat,
+  long,
+}} catch (err: any) {
     error('Error fetching address: ', err?.message ?? '');
     return { address: 'Address Not Found', lat: 0, long: 0 };
   }
@@ -114,9 +113,9 @@ export const startLocationWatch = () => {
       // Reverse geocode (best-effort; tolerate failures)
       let address = '';
       try {
-        if (OLA_API_KEY) {
-          address = await olaReverseGeocode(lat, long);
-        }
+      if (OLA_API_KEY) {
+        address = await olaReverseGeocode(lat, long);
+      }
       } catch (e) {
         // ignore geocode failures, still post lat/long
         __DEV__ && console.warn('reverse geocode failed', e);
@@ -219,7 +218,7 @@ export const watchGeoLocation = (): { id: number | null; stop: () => void } => {
           try {
             const prev = (getData('LAST_GEO_ADDRESS') ?? {}) as any;
             setData('LAST_GEO_ADDRESS', { ...prev, lat, long });
-          } catch { }
+          } catch {}
         }
       },
       err => {

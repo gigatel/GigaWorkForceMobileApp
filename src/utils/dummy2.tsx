@@ -1,10 +1,13 @@
-//geocoding versosn
-// @utils/location.ts  (UPDATED)
-import Geolocation, { GeolocationResponse } from '@react-native-community/geolocation';
-import { DataType } from '@types';
-import { Linking, Platform } from 'react-native';
-import { isLocationEnabled, promptForEnableLocationIfNeeded } from 'react-native-android-location-enabler';
-import { useState, useEffect } from 'react';
+//@utils/location.ts (UPDATED FREE VERSION)
+import Geolocation, {
+  GeolocationResponse,
+} from '@react-native-community/geolocation';
+import {DataType} from '@types';
+import {Linking, Platform} from 'react-native';
+import {
+  isLocationEnabled,
+  promptForEnableLocationIfNeeded,
+} from 'react-native-android-location-enabler';
 import {
   check,
   checkMultiple,
@@ -13,17 +16,12 @@ import {
   request,
   requestMultiple,
 } from 'react-native-permissions';
-import { alert, error, log } from './common';
-import { getData, setData } from './preferences';
-import { postNowWithCoords } from '../../src/services/LocationPosterCore';
-import { OLA_MAP_API } from '@env';
-// init geocoder once
+import {alert, error, log} from './common';
+import {getData, setData} from './preferences';
+import {postNowWithCoords} from '../../src/services/LocationPosterCore';
 let watchId: number | null = null;
-// ✅ added missing lastFix declaration
-let lastFix: { lat: number; long: number; ts: number } | null = null;
-let lastKnownAddress: string = ''; // ✅ Track previous address
-const OLA_REVERSE_GEOCODE_URL = 'https://api.olamaps.io/places/v1/reverse-geocode';
-const OLA_API_KEY = OLA_MAP_API; // same env use kar raha tu
+let lastFix: {lat: number; long: number; ts: number} | null = null;
+let lastKnownAddress: string = '';
 export const initializeConfig = async () => {
   try {
     Geolocation.setRNConfiguration({
@@ -36,63 +34,58 @@ export const initializeConfig = async () => {
     __DEV__ && console.warn('initializeConfig error', e);
   }
 };
-const olaReverseGeocode = async (lat: number, long: number): Promise<string> => {
+// ✅ FREE Reverse Geocoding using OpenStreetMap
+const reverseGeocodeFree = async (
+  lat: number,
+  long: number,
+): Promise<string> => {
   try {
     const res = await fetch(
-      `${OLA_REVERSE_GEOCODE_URL}?latlng=${lat},${long}&api_key=${OLA_API_KEY}`,
+      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${long}&format=json&addressdetails=1`,
+      {
+        headers: {
+          'User-Agent': 'GigatelApp/1.0 (contact@gigatel.in)',
+        },
+      },
     );
-    const json = await res.json();
-
-    return (
-      json?.results?.[0]?.formatted_address ||
-      json?.display_name ||
-      ''
-    );
-  } catch (e) {
-    __DEV__ && console.warn('Ola reverse geocode failed', e);
-    return '';
+    const data = await res.json();
+    return data?.display_name ?? 'Address Not Found';
+  } catch (err) {
+    console.warn('reverseGeocodeFree error', err);
+    return 'Address Not Found';
   }
 };
 export const getAddressFromLatLong = async (): Promise<DataType.GeoAddress> => {
   try {
     const info = (await getGeoLocation()) as DataType.GeoLocation;
     log('info', info);
-    if (!info) {
-      return { address: 'Address Not Found', lat: 0, long: 0 };
-    }
-    const { latitude: lat, longitude: long } = info?.coords;
-    const address = await olaReverseGeocode(lat, long);
+    if (!info) return {address: 'Address Not Found', lat: 0, long: 0};
 
-    return {
-      address: address || 'Address Not Found',
-      lat,
-      long,
-    }
+    const {latitude: lat, longitude: long} = info?.coords;
+    const address = await reverseGeocodeFree(lat, long);
+
+    return {address, lat, long};
   } catch (err: any) {
     error('Error fetching address: ', err?.message ?? '');
-    return { address: 'Address Not Found', lat: 0, long: 0 };
+    return {address: 'Address Not Found', lat: 0, long: 0};
   }
 };
-
-export const getAddressWithLatLong = async (lat: number, long: number): Promise<DataType.GeoAddress> => {
+export const getAddressWithLatLong = async (
+  lat: number,
+  long: number,
+): Promise<DataType.GeoAddress> => {
   try {
     if (typeof lat !== 'number' || typeof long !== 'number') {
-      return { address: '', lat: lat ?? 0, long: long ?? 0 };
+      return {address: '', lat: lat ?? 0, long: long ?? 0};
     }
-    const address = await olaReverseGeocode(lat, long);
-    const addressComponent = {
-      address: address || '',
-      lat,
-      long,
-    };
-    console.info('Geo Address', { addressComponent });
-    return addressComponent;
+    const address = await reverseGeocodeFree(lat, long);
+    console.info('Geo Address', {address});
+    return {address, lat, long};
   } catch (err: any) {
     error('Error fetching address: ', err?.message ?? '');
-    return { address: '', lat: lat ?? 0, long: long ?? 0 };
+    return {address: '', lat: lat ?? 0, long: long ?? 0};
   }
 };
-
 export const startLocationWatch = () => {
   if (watchId !== null) return;
   console.log('startLocationWatch');
@@ -101,33 +94,27 @@ export const startLocationWatch = () => {
       const lat = pos?.coords?.latitude;
       const long = pos?.coords?.longitude;
       if (typeof lat !== 'number' || typeof long !== 'number') return;
-      // Keep a fresh in-memory fix
-      lastFix = { lat, long, ts: Date.now() };
 
-      // Mirror to Preferences for backward compatibility
+      lastFix = {lat, long, ts: Date.now()};
+
       try {
         const prev = (getData('LAST_GEO_ADDRESS') ?? {}) as any;
-        setData('LAST_GEO_ADDRESS', { ...prev, lat, long });
+        setData('LAST_GEO_ADDRESS', {...prev, lat, long});
       } catch (e) {
         __DEV__ && console.warn('setData LAST_GEO_ADDRESS failed', e);
       }
-      // Reverse geocode (best-effort; tolerate failures)
+      // Free reverse geocode
       let address = '';
       try {
-        if (OLA_API_KEY) {
-          address = await olaReverseGeocode(lat, long);
-        }
+        address = await reverseGeocodeFree(lat, long);
       } catch (e) {
-        // ignore geocode failures, still post lat/long
         __DEV__ && console.warn('reverse geocode failed', e);
       }
-      // ✅ NEW: Log when address changes
       if (address && address !== lastKnownAddress) {
         console.log('📍 Address changed:', address);
         lastKnownAddress = address;
       }
 
-      // Immediately post (throttled in PosterCore)
       try {
         void postNowWithCoords(lat, long, 'bg', undefined, address);
       } catch (e) {
@@ -139,18 +126,15 @@ export const startLocationWatch = () => {
     },
     {
       enableHighAccuracy: true,
-      distanceFilter: 10, // post on real movement; tune as needed
-      interval: 10000, // Android polling interval
-      fastestInterval: 5000, // Android min interval
+      distanceFilter: 10,
+      interval: 10000,
+      fastestInterval: 5000,
       timeout: 20000,
       maximumAge: 0,
       useSignificantChanges: false,
-      // showsBackgroundLocationIndicator exists only on iOS. cast to any to avoid TS error on android builds.
-      // showsBackgroundLocationIndicator: true as any,
     },
   );
 };
-
 export const stopLocationWatch = () => {
   if (watchId !== null) {
     try {
@@ -161,7 +145,6 @@ export const stopLocationWatch = () => {
     watchId = null;
   }
 };
-
 export const getGeoLocation = async (): Promise<GeolocationResponse> => {
   return new Promise((resolve, reject) => {
     try {
@@ -175,14 +158,17 @@ export const getGeoLocation = async (): Promise<GeolocationResponse> => {
               long: info.coords.longitude,
             });
           } catch (e) {
-            __DEV__ && console.warn('setData LAST_GEO_ADDRESS fail in getCurrentPosition', e);
+            __DEV__ &&
+              console.warn(
+                'setData LAST_GEO_ADDRESS fail in getCurrentPosition',
+                e,
+              );
           }
           resolve(info);
         },
         err => {
           error('Error fetching address: ', err?.message ?? '');
           const loc = getData('LAST_GEO_ADDRESS');
-          // Reject with an object shaped like a GeolocationResponse coords fallback
           reject({
             coords: {
               latitude: loc?.lat ?? 0,
@@ -201,59 +187,7 @@ export const getGeoLocation = async (): Promise<GeolocationResponse> => {
     }
   });
 };
-
-/**
- * watchGeoLocation: returns an active watchId and a function to unsubscribe.
- * Previous implementation returned a Promise that resolved on first fix (not very useful).
- */
-export const watchGeoLocation = (): { id: number | null; stop: () => void } => {
-  let localId: number | null = null;
-  try {
-    localId = Geolocation.watchPosition(
-      res => {
-        // update lastFix mirror
-        const lat = res?.coords?.latitude;
-        const long = res?.coords?.longitude;
-        if (typeof lat === 'number' && typeof long === 'number') {
-          lastFix = { lat, long, ts: Date.now() };
-          try {
-            const prev = (getData('LAST_GEO_ADDRESS') ?? {}) as any;
-            setData('LAST_GEO_ADDRESS', { ...prev, lat, long });
-          } catch { }
-        }
-      },
-      err => {
-        if (__DEV__) console.warn('watchGeoLocation error', err?.message);
-      },
-      {
-        interval: 10000,
-        timeout: 15000,
-        maximumAge: 50000,
-        enableHighAccuracy: true,
-        distanceFilter: 10,
-        useSignificantChanges: true,
-      },
-    );
-  } catch (e) {
-    __DEV__ && console.warn('watchGeoLocation start failed', e);
-  }
-
-  return {
-    id: localId,
-    stop: () => {
-      if (localId !== null) {
-        try {
-          Geolocation.clearWatch(localId);
-        } catch (e) {
-          __DEV__ && console.warn('watchGeoLocation clear failed', e);
-        }
-      }
-    },
-  };
-};
-
 export const getLastFix = () => lastFix;
-
 export const calculateDistance = (
   lat1: number,
   lon1: number,
@@ -262,7 +196,7 @@ export const calculateDistance = (
   unit: 'km' | 'mi' | 'm' = 'm',
 ): number => {
   if (isNaN(lat1) || isNaN(lon1) || isNaN(lat2) || isNaN(lon2)) {
-    console.warn('Invalid coordinates:', { lat1, lon1, lat2, lon2 });
+    console.warn('Invalid coordinates:', {lat1, lon1, lat2, lon2});
     return Number.POSITIVE_INFINITY;
   }
   const toRad = (value: number): number => (value * Math.PI) / 180;
@@ -278,7 +212,6 @@ export const calculateDistance = (
   const distance = R * c;
   return unit === 'm' ? Math.round(distance) : Number(distance.toFixed(2));
 };
-
 export const findNearestChamber = (
   currentLat: number,
   currentLon: number,
@@ -290,7 +223,7 @@ export const findNearestChamber = (
     chamber_latitude: string;
   }>,
   minDistance: number,
-): { chamber: any; distance: number } | null => {
+): {chamber: any; distance: number} | null => {
   let nearestChamber = null;
   let minDistanceFound = Infinity;
   for (const chamber of chambers) {
@@ -300,10 +233,15 @@ export const findNearestChamber = (
       console.warn(`Invalid coordinates for chamber ${chamber.chamber_id}`);
       continue;
     }
-    const distance = calculateDistance(currentLat, currentLon, chamberLat, chamberLon);
+    const distance = calculateDistance(
+      currentLat,
+      currentLon,
+      chamberLat,
+      chamberLon,
+    );
     if (distance < minDistanceFound) {
       minDistanceFound = distance;
-      nearestChamber = { chamber, distance };
+      nearestChamber = {chamber, distance};
     }
     if (distance <= minDistance) {
       return nearestChamber;
@@ -311,7 +249,6 @@ export const findNearestChamber = (
   }
   return minDistanceFound <= minDistance ? nearestChamber : null;
 };
-
 export const checkGps = async () => {
   try {
     const checkEnabled: boolean = await isLocationEnabled();
@@ -333,7 +270,6 @@ export const checkGps = async () => {
     return false;
   }
 };
-
 export const checkPermission = async () => {
   try {
     let permission;
@@ -364,7 +300,6 @@ export const checkPermission = async () => {
     return 'denied';
   }
 };
-
 export const requestPermission = async () => {
   let permission;
   if (Platform.OS === 'android') {
@@ -375,8 +310,7 @@ export const requestPermission = async () => {
     if (perm['android.permission.ACCESS_BACKGROUND_LOCATION'] !== 'granted') {
       alert({
         title: 'Background Location',
-        msg:
-          'Please enable background location to navigating\nPermissions > Location > "Allow all the time" to continue',
+        msg: 'Please enable background location to navigating\nPermissions > Location > "Allow all the time" to continue',
         onPress: () => {
           openLocationSetting();
         },
@@ -399,20 +333,19 @@ export const requestPermission = async () => {
 
 const openLocationSetting = () => {
   if (Platform.OS === 'android') {
-    // Prefer using sendIntent on Android if available
     try {
-      Linking.sendIntent('android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS')
+      Linking.sendIntent(
+        'android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS',
+      )
         .then(() => log('Location settings opened successfully'))
-        .catch((err) => {
+        .catch(err => {
           openSettings();
           error('An error occurred', err);
         });
     } catch (e) {
-      // fallback
       openSettings();
     }
   } else {
-    // iOS fallback: open app settings
     openSettings();
   }
 };
