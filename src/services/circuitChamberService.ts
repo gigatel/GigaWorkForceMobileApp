@@ -1,8 +1,7 @@
 // src/services/circuitChamberService.ts
-import {Common, Preferences} from '@utils';
-import {ApiResponse} from 'src/types/data-types';
-import {APIs} from '../apis';
-
+import { Common, Preferences } from '@utils';
+import { ApiResponse } from 'src/types/data-types';
+import { APIs } from '../apis';
 const API_ENDPOINTS = {
   GTPL_SUPPORT: {
     BASE_URL: 'http://mob.gigatel.me:40501/api/',
@@ -15,32 +14,28 @@ const API_ENDPOINTS = {
     BASE_URL: 'http://mob.gigatel.me:60104/api/',
     GET_NEAREST_CHAMBERS: 'Chamber/GetNearestChambersList',
     GET_CHAMBERS_BY_CIRCUIT: 'CircuitInfo/GetChambersByCircuitId',
-    },
+  },
 };
 // Types
 interface CustomerResponse {
   id: string;
   name: string;
-  // Add other customer fields as needed
 }
 interface CircuitResponse {
   id: string;
   name: string;
   customerId: string;
-  // Add other circuit fields as needed
 }
 interface ChamberResponse {
   id: string;
   name: string;
   distance: number;
-  // Add other chamber fields as needed
 }
 interface UpdateCoreRequest {
   chamberId: string;
   core1: string;
   core2: string;
   tube: string;
-  // Add other update fields as needed
 }
 class CircuitChamberService {
   private getEmployeeData() {
@@ -57,11 +52,11 @@ class CircuitChamberService {
       throw error;
     }
   }
-
-  // Get Customer List API
   async getCustomerList(): Promise<ApiResponse> {
+    console.log('getCustomerListAPI:')
     try {
       const token = Preferences.getData('API_AUTH_TOKEN');
+      console.log('token', `${API_ENDPOINTS.GTPL_SUPPORT.BASE_URL}${API_ENDPOINTS.GTPL_SUPPORT.GET_CUSTOMER_LIST}`);
       const response = await APIs.postRequestWithJson({
         path: `${API_ENDPOINTS.GTPL_SUPPORT.BASE_URL}${API_ENDPOINTS.GTPL_SUPPORT.GET_CUSTOMER_LIST}`,
         params: {
@@ -69,7 +64,6 @@ class CircuitChamberService {
         },
         isAuth: true,
       });
-
       return {
         success: response.status === '200',
         status: response.status || 500,
@@ -86,7 +80,6 @@ class CircuitChamberService {
       };
     }
   }
-
   // Get Circuit List by Customer ID
   async getCircuitList(customerId: string): Promise<ApiResponse> {
     try {
@@ -115,7 +108,6 @@ class CircuitChamberService {
       };
     }
   }
-
   // Get Chamber List by Circuit ID
   async getCircuitChamberInfo(circuitId: string): Promise<ApiResponse> {
     try {
@@ -128,8 +120,7 @@ class CircuitChamberService {
         },
         isAuth: true,
       });
-
-      console.log('🔑 Circuit Chamber Info Response:', response?.ChamberList);
+    console.log('🔑 Circuit Chamber Info Response:', response?.ChamberList);
       return {
         success: response.status === '200',
         status: response.status || 500,
@@ -146,7 +137,6 @@ class CircuitChamberService {
       };
     }
   }
-
   // Update Core Information
   async updateCoreInfo(updateData: UpdateCoreRequest): Promise<ApiResponse> {
     try {
@@ -245,7 +235,6 @@ class CircuitChamberService {
       };
     }
   }
-
   // Update Chamber Core Values
   async updateChamberCoreValues(
     chamberId: string,
@@ -268,7 +257,6 @@ class CircuitChamberService {
         },
         isAuth: true,
       });
-
       return {
         success: response.status === '200',
         status: response.status || 500,

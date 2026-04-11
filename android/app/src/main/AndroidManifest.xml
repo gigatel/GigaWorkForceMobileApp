@@ -1,4 +1,6 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <!-- Features / permissions -->
     <uses-feature
@@ -11,7 +13,6 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
-
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <uses-permission android:name="android.permission.INTERNET" />
@@ -20,7 +21,6 @@
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
-
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
@@ -36,7 +36,8 @@
         </intent>
         <intent>
             <action android:name="android.intent.action.VIEW" />
-            <data android:scheme="https" android:host="wa.me" />
+            <data android:scheme="https"
+                android:host="wa.me" />
         </intent>
     </queries>
 
@@ -52,10 +53,50 @@
         android:usesCleartextTraffic="true"
         android:supportsRtl="true">
 
-        <!-- Notifee foreground service -->
+        <!--
+            ✅ FIX 1 — Notifee ForegroundService
+            YOUR original had foregroundServiceType="location" but WITHOUT
+            tools:replace, notifee's own AAR manifest silently overwrites
+            this at Gradle merge time → Android 16 blocks location in bg.
+            stopWithTask="false" keeps it alive after app swipe-away.
+        -->
         <service
             android:name="app.notifee.core.ForegroundService"
-            android:foregroundServiceType="location" />
+            android:foregroundServiceType="location"
+            android:exported="false"
+            android:stopWithTask="false"
+            tools:replace="android:foregroundServiceType,android:exported,android:stopWithTask" />
+
+        <!--
+            ✅ FIX 2 — react-native-community/geolocation service
+            This library ships its own <service> inside its AAR WITHOUT
+            foregroundServiceType. Android 14+ (and 16) silently kills
+            location callbacks for any service missing this attribute.
+            tools:replace forces our version to win at merge time.
+        -->
+        <service
+            android:name="com.reactnativecommunity.geolocation.LocationService"
+            android:foregroundServiceType="location"
+            android:exported="false"
+            tools:replace="android:foregroundServiceType,android:exported" />
+
+        <!--
+            ✅ FIX 3 — BootReceiver
+            You had RECEIVE_BOOT_COMPLETED permission but NO receiver,
+            so the permission did nothing. This receiver restarts your
+            location watcher after device reboot or app update.
+            → Create BootReceiver.java next to MainActivity.java
+        -->
+        <receiver
+            android:name=".BootReceiver"
+            android:exported="true"
+            android:enabled="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </receiver>
 
         <activity
             android:name=".MainActivity"
@@ -75,7 +116,7 @@
             android:name="com.google.android.geo.API_KEY"
             android:value="AIzaSyDKLsOToPZ64XXyFyUSXiNYOKHhO33MD2g" />
 
-        <!-- ✅ FileProvider must be INSIDE <application> -->
+        <!-- FileProvider must be INSIDE <application> -->
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

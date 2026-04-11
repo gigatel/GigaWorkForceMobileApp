@@ -17,10 +17,9 @@ import { getData, removeData, setData } from '../preferences';
 import { APIs, URLs } from '@apis';
 
 let watchID: number | null = null;
-const UPDATE_INTERVAL = 0.25 * 60 * 1000; // 15 seconds
+const UPDATE_INTERVAL = 0.25 * 60 * 1000;
 const NOTIFICATION_ID = 'gigatel-location-tracking';
 let watchId: number | null;
-
 export type LocationData = {
   platform: 'android' | 'ios';
   location: {
@@ -29,7 +28,6 @@ export type LocationData = {
   };
   angle: number | null;
 };
-
 export interface ForegroundEvent {
   type: EventType;
   detail: {
@@ -38,7 +36,6 @@ export interface ForegroundEvent {
     input?: string;
   };
 }
-
 export const onEventRecieved = ({ type, detail }: Event) => {
   switch (type) {
     case EventType.PRESS:
@@ -221,7 +218,7 @@ export const startWatch = async (id = 'default') => {
 
     await notifee.displayNotification({
       id: NOTIFICATION_ID,
-      title: 'gigatrack is Running',
+      title: 'Giga ISP is Running',
       body: 'Tracking your location tap for more information',
       android: {
         channelId: channelId,

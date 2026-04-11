@@ -50,7 +50,7 @@ export const startLocationService = async (): Promise<boolean> => {
     // Display foreground service notification
     await notifee.displayNotification({
       id: NOTIFICATION_ID,
-      title: 'gigatrack is Running',
+      title: 'gigaWorkforce is Running',
       body: 'For update the task and data, tap for more information',
       android: {
         channelId: channelId,

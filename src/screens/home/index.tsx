@@ -9,20 +9,22 @@ import {
 import {BackHandler} from 'react-native';
 import {RootStackParamList} from '@navigation/navigator';
 import {Screen} from '@organisms';
-import Geolocation from '@react-native-community/geolocation';
 import NetInfo from '@react-native-community/netinfo';
 import {useFocusEffect} from '@react-navigation/native';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {RootState, StoreDispatch} from '@reducers';
 import {COLORS, CONSTANT, FONTS, IMAGES, SIZE, STYLES} from '@res';
-// import {todayAttendanceApi} from '@slices/attendance.slice';
 import {dashboardListApi, getLoginTokenApi} from '@slices/dashboard.slice';
 import {DataType, ScreenProps} from '@types';
 import {
   postOnceIfDue,
   attachPosterDispatch,
 } from '../../services/LocationPosterCore';
-import {startForegroundPoster} from '../../services/ForegroundLocationPoster';
+import {
+  startForegroundPoster,
+  stopForegroundPoster,
+  restartForegroundPoster,
+} from '../../services/ForegroundLocationPoster';
 import {attachDispatch} from '../../services/LocationBatteryService';
 import {
   Common,
@@ -51,11 +53,12 @@ import {
   Linking,
   NativeModules,
   NativeEventEmitter,
-  TouchableOpacity, // ✅ added
+  TouchableOpacity,
 } from 'react-native';
 import * as Animiatable from 'react-native-animatable';
 import {connect, useDispatch} from 'react-redux';
 import DeviceInfo from 'react-native-device-info';
+
 type MobileVersion = {
   project_name?: string;
   access_url?: string;
@@ -63,6 +66,7 @@ type MobileVersion = {
   version_code?: string | number;
   description?: string;
 };
+
 export interface ProjectListItemProps {
   data: DataType.Project;
   index?: number;
@@ -78,17 +82,15 @@ interface ModuleCardProps {
   image: string;
   onPress?: () => void;
 }
+
 let navigator: NativeStackNavigationProp<RootStackParamList>;
+
 function getRandomDelay() {
   return Math.floor(Math.random() * (10000 - 2000 + 1)) + 2000;
 }
 
 const check = (name: string, lName: string) =>
   Common.isEqualIgnoreCase(name, lName);
-const pickGoogleMapKey = (r: any) =>
-  r?.googleMapKey ?? r?.data?.googleMapKey ?? null;
-const employeeId = (r: any) =>
-  r?.employeeDetails?.id ?? r?.data?.employeeDetails?.id ?? null;
 
 const formatBytes = (n?: number) => {
   if (!n || n <= 0) return '0 B';
@@ -105,6 +107,7 @@ const toParts = (v?: string | number) =>
     .split('.')
     .map(s => parseInt(s, 10))
     .map(n => (Number.isFinite(n) ? n : 0));
+
 const cmpDot = (a: string | number, b: string | number) => {
   const A = toParts(a);
   const B = toParts(b);
@@ -117,6 +120,7 @@ const cmpDot = (a: string | number, b: string | number) => {
   }
   return 0;
 };
+
 const isServerNewerThanInstalled = async (serverCode?: string | number) => {
   const sc = String(serverCode ?? '').trim();
   if (!sc) return false;
@@ -128,7 +132,8 @@ const isServerNewerThanInstalled = async (serverCode?: string | number) => {
   const srvBuild = parseInt(sc, 10) || 0;
   return srvBuild > appBuild;
 };
-// ===== iOS OTA helpers: probe & open
+
+// ===== iOS OTA helpers =====
 type HeadProbe = {
   ok: boolean;
   status: number;
@@ -137,14 +142,13 @@ type HeadProbe = {
   url: string;
   error?: string;
 };
+
 const normalizeUrl = (raw: string) => {
   let u = raw.trim();
-  // Remove accidental double slashes after host
-  u = u.replace(/([^:])\/{2,}/g, '$1/'); // keeps "https://"
+  u = u.replace(/([^:])\/{2,}/g, '$1/');
   return u;
 };
 
-// Try HEAD first; if blocked, try Range GET (1 byte) to fetch headers without downloading file
 const probeUrl = async (url: string): Promise<HeadProbe> => {
   try {
     const res = await fetch(url, {method: 'HEAD' as any});
@@ -241,10 +245,9 @@ const openOtaIOS = async (rawUrl: string) => {
   }
   await Linking.openURL(url);
 };
-// ===== NAVIGATION FOR SUB-MODULES =====
+
+// ===== Navigation for sub-modules =====
 const moduleNavigation = (item: DataType.SubModule) => {
-  Common.log('item', item);
-  console.log('itemData', {item});
   if (
     check(item.subModuleName, 'TICKETS') ||
     check(item.subModuleName, 'COMPLAINTS') ||
@@ -312,7 +315,7 @@ const moduleNavigation = (item: DataType.SubModule) => {
   }
 };
 
-// ===== UI bits =====
+// ===== UI Components =====
 const ModuleCard: FC<ModuleCardProps> = ({title, image, onPress}) => (
   <TouchableOpacity
     style={styles.moduleCardContainer}
@@ -343,22 +346,20 @@ const ProjectList = memo(
     desc: string;
     code: string | number;
     onRefresh: () => void;
-  }) => {
-    return (
-      <View>
-        <ListView
-          data={data}
-          bounces
-          isRefreshable
-          onRefresh={onRefresh}
-          ListHeaderComponent={<LogoView verCode={String(code)} desc={desc} />}
-          renderItem={({item}: {item: DataType.Project}) => (
-            <ProjectListItem data={item} />
-          )}
-        />
-      </View>
-    );
-  },
+  }) => (
+    <View>
+      <ListView
+        data={data}
+        bounces
+        isRefreshable
+        onRefresh={onRefresh}
+        ListHeaderComponent={<LogoView verCode={String(code)} desc={desc} />}
+        renderItem={({item}: {item: DataType.Project}) => (
+          <ProjectListItem data={item} />
+        )}
+      />
+    </View>
+  ),
 );
 
 const ProjectListItem: FC<ProjectListItemProps> = ({data}) => (
@@ -408,71 +409,35 @@ const SubModuleListItem: FC<SubModuleListItemProps> = ({item}) => {
   );
 };
 
-const LogoView = ({desc}: {desc: string; verCode?: string}) => {
-  console.log('logoViewDesc', {desc});
-  if (__DEV__)
-    return (
-      <>
-        <Animiatable.Image
-          useNativeDriver
-          iterationCount="infinite"
-          animation="swing"
-          source={IMAGES.globe}
-          style={styles.globe}
-        />
-        <View style={styles.logoView}>
-          <Buttons
-            type="primary"
-            title={'PROD'}
-            viewStyle={styles.devButtonView}
-          />
-          <View style={styles.logoNameView}>
-            <Image source={IMAGES.appLogo} style={styles.logoImage} />
-            {/* <Text style={styles.logoNameText}>{'Gigatrack'}</Text> */}
-          </View>
-          <Buttons
-            type="primary"
-            title={`V ${Common.getAppVersion()}`}
-            viewStyle={styles.vcButtonView}
-          />
-        </View>
-      </>
-    );
-  return (
-    <>
-      <Animiatable.Image
-        useNativeDriver
-        iterationCount="infinite"
-        animation="swing"
-        source={IMAGES.globe}
-        style={styles.globe}
-      />
-      <View style={styles.logoView}>
-        <Buttons
-          type="primary"
-          title={'PROD'}
-          viewStyle={styles.devButtonView}
-        />
-        <View style={styles.logoNameView}>
-          <Image source={IMAGES.appLogo} style={styles.logoImage} />
-          {/* <Text style={styles.logoNameText}>{'Gigatrack'}</Text> */}
-        </View>
-        <Buttons
-          type="primary"
-          title={`V ${Common.getAppVersion()}`}
-          viewStyle={styles.vcButtonView}
-        />
+const LogoView = ({desc}: {desc: string; verCode?: string}) => (
+  <>
+    <Animiatable.Image
+      useNativeDriver
+      iterationCount="infinite"
+      animation="swing"
+      source={IMAGES.globe}
+      style={styles.globe}
+    />
+    <View style={styles.logoView}>
+      <Buttons type="primary" title={'PROD'} viewStyle={styles.devButtonView} />
+      <View style={styles.logoNameView}>
+        <Image source={IMAGES.appLogo} style={styles.logoImage} />
       </View>
-    </>
-  );
-};
+      <Buttons
+        type="primary"
+        title={`V ${Common.getAppVersion()}`}
+        viewStyle={styles.vcButtonView}
+      />
+    </View>
+  </>
+);
 
-// ---------- FULL-SCREEN UPDATE GATE (both Android & iOS)
 const UpdateGateScreen = ({children}: {children: React.ReactNode}) => (
   <View style={styles.updateScreen}>
     <View style={styles.updateScreenInner}>{children}</View>
   </View>
 );
+
 const UpdateRequiredCard = ({
   versionName,
   onUpdatePress,
@@ -509,7 +474,7 @@ const UpdateRequiredCard = ({
         Server: code {serverVersionCode ?? '—'}
       </Text>
     )}
-    {downloading ? (
+    {downloading && (
       <Text style={styles.updateNote}>
         Downloading…
         {typeof percent === 'number' && percent >= 0
@@ -521,8 +486,7 @@ const UpdateRequiredCard = ({
           ? ` • ${formatBytes(downloaded)} / ${formatBytes(total)}`
           : ''}
       </Text>
-    ) : null}
-
+    )}
     <Buttons
       type="primary"
       title={downloading ? 'Downloading…' : 'Update Now'}
@@ -532,99 +496,196 @@ const UpdateRequiredCard = ({
   </View>
 );
 
+// ===== Main Home Component =====
 const Home: FC<ScreenProps.Home> = ({loading, dashboardList, navigation}) => {
   navigator = navigation;
-  const {ApkInstaller} = NativeModules;
 
   const [showLocationSheet, setShowLocationSheet] = useState(false);
   const [isLoading, setisLoading] = useState(false);
   const [showSync, setShowSync] = useState(false);
   const [currentAddress, setCurrentAddress] = useState('');
+  const [showPrivacy, setShowPrivacy] = useState(false);
+  const [forcedUpdateRequired, setForcedUpdateRequired] = useState(false);
 
-  // APK download progress (Android)
   const [dlActive, setDlActive] = useState<boolean>(false);
   const [dlPercent, setDlPercent] = useState<number>(0);
   const [dlDownloaded, setDlDownloaded] = useState<number>(0);
   const [dlTotal, setDlTotal] = useState<number>(-1);
 
-  const [showPrivacy, setShowPrivacy] = useState(false);
   const locationTimerRef = useRef<NodeJS.Timeout | null>(null);
-
   const dispatch = useDispatch<StoreDispatch>();
+
+  // ===== Static tickets project =====
+  const TICKET_ICON = 'https://img.icons8.com/ios-filled/100/ticket--v3.png';
+  const uiProjects = useMemo<DataType.Project[]>(
+    () => [
+      {
+        projectName: 'Custom Module',
+        modules: [
+          {
+            moduleName: 'TICKETS',
+            subModules: [
+              {
+                subModuleName: 'TICKETS',
+                subModuleImage: TICKET_ICON,
+                polices: [{policyName: 'AccessTicket'}],
+              } as unknown as DataType.SubModule,
+            ],
+          } as unknown as DataType.Module,
+        ],
+      } as unknown as DataType.Project,
+    ],
+    [],
+  );
+
+  // ===== Version info =====
+  const appVersionName = DeviceInfo.getVersion();
+  const appBuildNumber = DeviceInfo.getBuildNumber();
+  const serverVersionCode =
+    dashboardList?.mobileAppVersion1?.version_code ??
+    dashboardList?.mobileAppVersion?.version_code;
+
+  const {forcedAccessUrl, forcedVersionName, forcedProjectName} =
+    useMemo(() => {
+      const mv1: MobileVersion | undefined = dashboardList?.mobileAppVersion1;
+      return {
+        forcedAccessUrl: mv1?.access_url as string | undefined,
+        forcedVersionName: mv1?.version_name as string | undefined,
+        forcedProjectName:
+          (mv1?.project_name as string | undefined) ?? 'Employee Master',
+      };
+    }, [dashboardList]);
+
+  const hideDashboardModules = forcedUpdateRequired;
+
+  // ===== Core service starter =====
+  // ✅ Does NOT guard with "already running" — uses restartForegroundPoster
+  // so background→foreground always re-attaches the watcher
+  const ensurePostingServices = useCallback(async () => {
+    try {
+      attachDispatch(dispatch);
+      attachPosterDispatch(dispatch);
+      restartForegroundPoster(); // ✅ sirf restart karta hai agar band tha
+    } catch (e) {
+      __DEV__ && console.warn('[Home] ensurePostingServices failed', e);
+    }
+  }, [dispatch]);
+
+  const handleStartService = useCallback(async () => {
+    const res = await Location.checkPermission();
+    if (res) {
+      await Location.initializeConfig();
+      await Services.startLocationService();
+      await ensurePostingServices();
+    }
+  }, [ensurePostingServices]);
+
+  const getDashboardData = useCallback(
+    (refresh: boolean) => {
+      dispatch(dashboardListApi({isRefresh: refresh}));
+    },
+    [dispatch],
+  );
+
+  const sync = useCallback(() => {
+    const lastAtt = Preferences.getData('OFFLINE_ATTENDANCE');
+    NetInfo.fetch().then(state => {
+      if (state.isConnected && lastAtt && lastAtt.length > 0) {
+        setShowSync(true);
+      }
+    });
+  }, []);
+
+  // ===== EFFECT 1: One-time mount setup =====
+  // Login token, permissions, dashboard data, location sheet
+  useEffect(() => {
+    Common.warn('DEVELOPER_NAME::', DEVELOPER_NAME);
+    dispatch(getLoginTokenApi());
+    Permissions.requestPermission();
+    handleStartService();
+    getDashboardData(false);
+    setShowLocationSheet(
+      Preferences.getData('ALLOWED_ACCESS_FOR_LOCATION_BACKGROUND') !== 'yes',
+    );
+  }, [dispatch, handleStartService, getDashboardData]);
+  // ===== EFFECT 4: AppState — sirf active pe restart =====
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', async state => {
+      __DEV__ && console.log('[AppState]', state);
+
+      if (state === 'active') {
+        // ✅ App foreground mein aaya — watcher restart karo agar band tha
+        try {
+          await ensurePostingServices(); // restartForegroundPoster call hoga
+          await postOnceIfDue('fg', dispatch);
+        } catch (e) {
+          __DEV__ && console.warn('[AppState active] failed', e);
+        }
+      }
+      // ✅ 'background' aur 'inactive' pe KUCH NAHI — watcher chalta rehne do
+    });
+    return () => sub.remove();
+  }, [ensurePostingServices, dispatch]);
+
+  // ===== EFFECT 2: Initial address fetch + first location post =====
+  useEffect(() => {
+    const timer = setTimeout(async () => {
+      try {
+        const hasPermission = await Location.checkPermission();
+        if (!hasPermission) {
+          const granted = await Permissions.requestPermission();
+          if (!granted) return;
+        }
+        const geo =
+          (await Location.getAddressFromLatLong()) as DataType.GeoAddress;
+        if (geo?.lat && geo?.long) {
+          Preferences.setData(Preferences.KEY.LAST_GEO_ADDRESS, {
+            lat: geo.lat,
+            long: geo.long,
+            address: geo.address ?? '',
+          });
+          await postOnceIfDue('fg', dispatch);
+        }
+      } catch (err) {
+        __DEV__ && console.warn('[Home] initial address fetch error:', err);
+      }
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [dispatch]);
+
+  // ===== EFFECT 3: Address polling for UI (every 5s) =====
   useEffect(() => {
     const interval = setInterval(() => {
       const addrData = Preferences.getData(Preferences.KEY.LAST_GEO_ADDRESS);
       if (addrData?.address && addrData.address !== currentAddress) {
         setCurrentAddress(addrData.address);
       }
-    }, 5000); // check every 5s for UI update
-
+    }, 5000);
     return () => clearInterval(interval);
   }, [currentAddress]);
 
-  useEffect(() => {
-    const parent = navigation?.getParent?.();
-    if (!parent || typeof parent.addListener !== 'function') return;
+  // ===== EFFECT 4: AppState — restart services on foreground =====
+  // useEffect(() => {
+  //   const sub = AppState.addEventListener('change', async state => {
+  //     __DEV__ && console.log('[AppState]', state);
+  //     if (state === 'active') {
+  //       // ✅ Only restart on 'active' (returning to foreground), not every state
+  //       try {
+  //         await ensurePostingServices();
+  //         await postOnceIfDue('fg', dispatch);
+  //       } catch (e) {
+  //         __DEV__ && console.warn('[BG] AppState ensure failed', e);
+  //       }
+  //     }
+  //     if (state === 'background') {
+  //       // ✅ Stop the watcher when going to background to save battery
+  //       stopForegroundPoster();
+  //     }
+  //   });
+  //   return () => sub.remove();
+  // }, [ensurePostingServices, dispatch]);
 
-    const onTabPress = (e: any) => {
-      try {
-        const isForce = Preferences.getData('FORCE_UPDATE_REQUIRED') === 'yes';
-        if (!isForce) return;
-
-        // Block switching to other tabs
-        e.preventDefault?.();
-        Common.showToast('Update required — other tabs are disabled.');
-      } catch {}
-    };
-
-    const unsub = parent.addListener('tabPress', onTabPress);
-    return () => {
-      if (typeof unsub === 'function') unsub();
-    };
-  }, [navigation]);
-
-  // ======== STATIC "TICKETS" PROJECT (Custom) ========
-  const TICKET_ICON = 'https://img.icons8.com/ios-filled/100/ticket--v3.png';
-  const makeLocalTicketsProject = (): DataType.Project =>
-    ({
-      projectName: 'Custom Module',
-      modules: [
-        {
-          moduleName: 'TICKETS',
-          subModules: [
-            {
-              subModuleName: 'TICKETS',
-              subModuleImage: TICKET_ICON,
-              polices: [{policyName: 'AccessTicket'}],
-            } as unknown as DataType.SubModule,
-          ],
-        } as unknown as DataType.Module,
-      ],
-    } as unknown as DataType.Project);
-
-  // 🔁 CHANGED: use ONLY local custom tickets (no dependency on API modules),
-  // while keeping your API calls elsewhere fully active.
-  const uiProjects = useMemo<DataType.Project[]>(
-    () => [makeLocalTicketsProject()],
-    [],
-  );
-  // ================================================
-
-  const ensurePostingServices = useCallback(async () => {
-    try {
-      attachDispatch(dispatch);
-      attachPosterDispatch(dispatch);
-      startForegroundPoster();
-    } catch (e) {
-      __DEV__ && console.warn('[Home] ensurePostingServices failed', e);
-    }
-  }, [dispatch]);
-
-  useEffect(() => {
-    void ensurePostingServices();
-  }, [ensurePostingServices]);
-
-  // Android APK installer events
+  // ===== EFFECT 5: APK installer events (Android) =====
   useEffect(() => {
     if (!NativeModules.ApkInstaller) return;
     const emitter = new NativeEventEmitter(NativeModules.ApkInstaller);
@@ -652,106 +713,109 @@ const Home: FC<ScreenProps.Home> = ({loading, dashboardList, navigation}) => {
     };
   }, []);
 
+  // ===== EFFECT 6: Force-update pref sync =====
   useEffect(() => {
-    const sub = AppState.addEventListener('change', async state => {
-      __DEV__ && console.log('[AppState]', state);
-      if (
-        state === 'active' ||
-        state === 'background' ||
-        state === 'inactive'
-      ) {
-        try {
-          await ensurePostingServices();
-        } catch (e) {
-          __DEV__ && console.warn('[BG] ensure on AppState failed', e);
-        }
+    Preferences.setData(
+      'FORCE_UPDATE_REQUIRED',
+      hideDashboardModules ? 'yes' : 'no',
+    );
+  }, [hideDashboardModules]);
+  useEffect(() => {
+    void ensurePostingServices();
+  }, [ensurePostingServices]); //
+  // ===== EFFECT 7: Version check when dashboard loads =====
+  useEffect(() => {
+    let isActive = true;
+    (async () => {
+      const serverCode =
+        dashboardList?.mobileAppVersion1?.version_code ??
+        dashboardList?.mobileAppVersion?.version_code;
+      try {
+        const newer = await isServerNewerThanInstalled(serverCode);
+        if (isActive) setForcedUpdateRequired(newer);
+      } catch (e) {
+        __DEV__ && console.warn('[VersionCheck] failed', e);
+        if (isActive) setForcedUpdateRequired(false);
       }
+    })();
+    return () => {
+      isActive = false;
+    };
+  }, [dashboardList]);
+
+  // ===== EFFECT 8: Tab press guard during forced update =====
+  useEffect(() => {
+    const parent = navigation?.getParent?.();
+    if (!parent || typeof parent.addListener !== 'function') return;
+    const unsub = parent.addListener('tabPress', (e: any) => {
+      try {
+        const isForce = Preferences.getData('FORCE_UPDATE_REQUIRED') === 'yes';
+        if (!isForce) return;
+        e.preventDefault?.();
+        Common.showToast('Update required — other tabs are disabled.');
+      } catch {}
     });
-    return () => sub.remove();
-  }, [ensurePostingServices]);
-  // ✅ Start foreground + periodic updates every 30s while focused
+    return () => {
+      if (typeof unsub === 'function') unsub();
+    };
+  }, [navigation]);
+
+  // ===== FOCUS EFFECT 1: Main location + interval =====
+  // ✅ Single consolidated focus effect — starts services, posts immediately, sets interval
   useFocusEffect(
     useCallback(() => {
-      let isMounted = true;
+      setShowPrivacy(false);
+      sync();
 
-      const startInterval = () => {
-        if (locationTimerRef.current) clearInterval(locationTimerRef.current);
-        locationTimerRef.current = setInterval(async () => {
-          try {
-            await postOnceIfDue('fg', dispatch);
-          } catch (e) {
-            __DEV__ && console.warn('[Home] postOnceIfDue failed', e);
-          }
-        }, 30_000); // every 30 seconds
-      };
-
-      const startLocationFlow = async () => {
+      const startFlow = async () => {
         try {
-          await ensurePostingServices();
-          startInterval();
-        } catch (err) {
-          __DEV__ && console.warn('[Home] startLocationFlow failed', err);
+          await ensurePostingServices(); // restart watcher
+          await postOnceIfDue('fg', dispatch); // immediate post on focus
+        } catch (e) {
+          __DEV__ && console.warn('[Home] focus flow failed', e);
         }
       };
 
-      startLocationFlow();
+      startFlow();
+
+      // Post every 30s while screen is focused
+      if (locationTimerRef.current) clearInterval(locationTimerRef.current);
+      locationTimerRef.current = setInterval(async () => {
+        try {
+          await postOnceIfDue('fg', dispatch);
+        } catch (e) {
+          __DEV__ && console.warn('[Home] interval post failed', e);
+        }
+      }, 30_000);
 
       return () => {
-        isMounted = false;
-        if (locationTimerRef.current) clearInterval(locationTimerRef.current);
+        if (locationTimerRef.current) {
+          clearInterval(locationTimerRef.current);
+          locationTimerRef.current = null;
+        }
       };
-    }, [ensurePostingServices, dispatch]),
+    }, [ensurePostingServices, dispatch, sync]),
   );
 
-  // ✅ Restart services when app comes to foreground or background
-  useEffect(() => {
-    const sub = AppState.addEventListener('change', async state => {
-      if (['active', 'background'].includes(state)) {
-        await ensurePostingServices();
-      }
-    });
-    return () => sub.remove();
-  }, [ensurePostingServices]);
+  // ===== FOCUS EFFECT 2: Hardware back — exit app =====
+  useFocusEffect(
+    useCallback(() => {
+      const handler = BackHandler.addEventListener('hardwareBackPress', () => {
+        BackHandler.exitApp();
+        return true;
+      });
+      return () => handler.remove();
+    }, []),
+  );
 
-  // ✅ Continue with your existing location + dashboard setup
-  const handleStartService = useCallback(async () => {
-    const res = await Location.checkPermission();
-    if (res) {
-      await Location.initializeConfig();
-      await Services.startLocationService();
-      await ensurePostingServices();
-    }
-  }, [ensurePostingServices]);
-
-  useEffect(() => {
-    dispatch(getLoginTokenApi());
-    Permissions.requestPermission();
-    handleStartService();
-  }, [dispatch, handleStartService]);
-
-  // (Optional) Map key setter paused while modules are static
-  // useEffect(() => {
-  //   const key = pickGoogleMapKey(dashboardList);
-  //   if (key) Preferences.setData('GOOGLE_MAPS_API_KEY', key);
-  // }, [dashboardList]);
-
-  // useEffect(() => {
-  //   const eid = employeeId(dashboardList);
-  //   if (eid) {
-  //     console.log('employeeID', {eid});
-  //     Preferences.setData('EMPLOYEE_ID', eid);
-  //     Common.log('Saved EMPLOYEE_ID in Preferences:', eid);
-  //   }
-  // }, [dashboardList]);
-
+  // ===== FOCUS EFFECT 3: Attendance check =====
   useFocusEffect(
     useCallback(() => {
       if (
         dashboardList?.employeeDetails?.id &&
         dashboardList.employeeDetails.companyId
       ) {
-        // Keep APIs intact if you re-enable attendance later
-        // dispatch(todayAttendanceApi({ ... }))
+        // dispatch attendance API here if needed
       }
     }, [
       dashboardList?.employeeDetails?.companyId,
@@ -759,24 +823,44 @@ const Home: FC<ScreenProps.Home> = ({loading, dashboardList, navigation}) => {
       dispatch,
     ]),
   );
-  useFocusEffect(
-    useCallback(() => {
-      const onBackPress = () => {
-        // ✅ Exit the app instead of going back
-        BackHandler.exitApp();
-        return true; // prevent default navigation
-      };
 
-      // Add event listener when this screen is focused
-      const backHandler = BackHandler.addEventListener(
-        'hardwareBackPress',
-        onBackPress,
-      );
-
-      // Remove listener on unfocus/unmount
-      return () => backHandler.remove();
-    }, []),
-  );
+  // ===== Update press handler =====
+  const onUpdatePress = useCallback(async () => {
+    const raw = forcedAccessUrl;
+    if (!raw) {
+      Common.showToast('Update URL not found');
+      return;
+    }
+    if (Platform.OS === 'ios') {
+      await openOtaIOS(raw);
+      return;
+    }
+    try {
+      const canInstall =
+        await NativeModules.ApkInstaller?.canRequestPackageInstalls();
+      if (!canInstall) {
+        Common.warn('Allow "Install unknown apps" for this app to continue.');
+        NativeModules.ApkInstaller?.openUnknownSourcesSettings();
+        return;
+      }
+      setDlActive(true);
+      setDlPercent(0);
+      setDlDownloaded(0);
+      setDlTotal(-1);
+      const fileName = `Gigatel-${forcedVersionName ?? 'update'}.apk`;
+      await NativeModules.ApkInstaller?.downloadAndInstall(raw, fileName);
+    } catch (e: any) {
+      setDlActive(false);
+      Common.alert({
+        title: 'Install failed',
+        msg:
+          (e?.message ?? String(e)) +
+          '\n\nIf you still see "App not installed – package conflicts", ' +
+          'the existing app is signed with a different key or has a different packageId. ' +
+          'Use the same keystore & package, and ensure versionCode is higher, or uninstall once.',
+      });
+    }
+  }, [forcedAccessUrl, forcedVersionName]);
 
   const syncOfflineData = async () => {
     try {
@@ -812,249 +896,7 @@ const Home: FC<ScreenProps.Home> = ({loading, dashboardList, navigation}) => {
     }
   };
 
-  const sync = () => {
-    const lastAtt = Preferences.getData('OFFLINE_ATTENDANCE');
-    NetInfo.fetch().then(state => {
-      if (state.isConnected && lastAtt && lastAtt.length > 0) {
-        Common.log('Last Attendance Data Home::::::', lastAtt);
-        setShowSync(true);
-      }
-    });
-  };
-
-  useFocusEffect(
-    useCallback(() => {
-      sync();
-    }, []),
-  );
-
-  const getDashboardData = useCallback(
-    (refresh: boolean) => {
-      dispatch(dashboardListApi({isRefresh: refresh}));
-    },
-    [dispatch],
-  );
-  useEffect(() => {
-    Common.warn('DEVELOPER_NAME::', DEVELOPER_NAME);
-    getDashboardData(false);
-    setShowLocationSheet(
-      Preferences.getData('ALLOWED_ACCESS_FOR_LOCATION_BACKGROUND') !== 'yes',
-    );
-  }, [dispatch, getDashboardData, handleStartService]);
-
-  // useFocusEffect(
-  //   useCallback(() => {
-  //     setShowPrivacy(false);
-  //     handleStartService();
-
-  //     Geolocation.getCurrentPosition(
-  //       info => {
-  //         Preferences.setData('LAST_GEO_ADDRESS', {
-  //           address: '',
-  //           lat: info.coords.latitude,
-  //           long: info.coords.longitude,
-  //         });
-  //         Location.getAddressWithLatLong(
-  //           info.coords.latitude,
-  //           info.coords.longitude,
-  //         ).then(data => {
-  //           Preferences.setData('LAST_GEO_ADDRESS', data);
-  //         });
-  //       },
-  //       err => Common.error('getCurrentPosition HOME Error::', err),
-  //       {timeout: 20000, maximumAge: 0, enableHighAccuracy: false},
-  //     );
-  //   }, [handleStartService]),
-  // );
-  useFocusEffect(
-    useCallback(() => {
-      setShowPrivacy(false);
-      handleStartService(); // this starts the foreground poster which starts the watcher
-    }, [handleStartService]),
-  );
-
-  // ===== Version-based update gating
-  const [forcedUpdateRequired, setForcedUpdateRequired] = useState(false);
-  const {forcedAccessUrl, forcedVersionName, forcedProjectName} =
-    useMemo(() => {
-      const mv1: MobileVersion | undefined = dashboardList?.mobileAppVersion1;
-      return {
-        forcedAccessUrl: mv1?.access_url as string | undefined,
-        forcedVersionName: mv1?.version_name as string | undefined,
-        forcedProjectName:
-          (mv1?.project_name as string | undefined) ?? 'Employee Master',
-      };
-    }, [dashboardList]);
-  // ✅ Reliable location getter with retry + fallback
-  const getSafeLocation = async (
-    retries = 3,
-  ): Promise<{lat: number; long: number} | null> => {
-    return new Promise(resolve => {
-      const attempt = (remaining: number) => {
-        Geolocation.getCurrentPosition(
-          pos => {
-            resolve({
-              lat: pos.coords.latitude,
-              long: pos.coords.longitude,
-            });
-          },
-          err => {
-            if (remaining > 1) {
-              __DEV__ &&
-                console.warn(
-                  `[Home] getCurrentPosition failed (${
-                    retries - remaining + 1
-                  }), retrying...`,
-                  err?.message,
-                );
-              setTimeout(() => attempt(remaining - 1), 2000); // retry after 2s
-            } else {
-              __DEV__ &&
-                console.warn(
-                  '[Home] getCurrentPosition final fail:',
-                  err?.message,
-                );
-              // fallback to last known location
-              const last = Preferences.getData(
-                Preferences.KEY.LAST_GEO_ADDRESS,
-              );
-              if (last?.lat && last?.long) {
-                resolve({lat: last.lat, long: last.long});
-              } else {
-                resolve(null);
-              }
-            }
-          },
-          {
-            enableHighAccuracy: true,
-            timeout: 10000,
-            maximumAge: 0,
-          },
-        );
-      };
-      attempt(retries);
-    });
-  };
-
-  useEffect(() => {
-    let isActive = true;
-    (async () => {
-      const serverCode =
-        dashboardList?.mobileAppVersion1?.version_code ??
-        dashboardList?.mobileAppVersion?.version_code;
-      try {
-        const newer = await isServerNewerThanInstalled(serverCode);
-        if (isActive) setForcedUpdateRequired(newer);
-      } catch (e) {
-        __DEV__ && console.warn('[VersionCheck] failed', e);
-        if (isActive) setForcedUpdateRequired(false);
-      }
-    })();
-    return () => {
-      isActive = false;
-    };
-  }, [dashboardList]);
-
-  const onUpdatePress = useCallback(async () => {
-    const raw = forcedAccessUrl;
-    if (!raw) {
-      Common.showToast('Update URL not found');
-      return;
-    }
-
-    if (Platform.OS === 'ios') {
-      await openOtaIOS(raw);
-      return;
-    }
-
-    // Android: existing APK flow
-    try {
-      const canInstall =
-        await NativeModules.ApkInstaller?.canRequestPackageInstalls();
-      if (!canInstall) {
-        Common.warn('Allow “Install unknown apps” for this app to continue.');
-        NativeModules.ApkInstaller?.openUnknownSourcesSettings();
-        return;
-      }
-      setDlActive(true);
-      setDlPercent(0);
-      setDlDownloaded(0);
-      setDlTotal(-1);
-      const fileName = `Gigatel-${forcedVersionName ?? 'update'}.apk`;
-      await NativeModules.ApkInstaller?.downloadAndInstall(raw, fileName);
-    } catch (e: any) {
-      setDlActive(false);
-      Common.alert({
-        title: 'Install failed',
-        msg:
-          (e?.message ?? String(e)) +
-          '\n\nIf you still see “App not installed – package conflicts”, ' +
-          'the existing app is signed with a different key or has a different packageId. ' +
-          'Use the same keystore & package, and ensure versionCode is higher, or uninstall once.',
-      });
-    }
-  }, [forcedAccessUrl, forcedVersionName]);
-
-  const hideDashboardModules = forcedUpdateRequired;
-
-  useEffect(() => {
-    Preferences.setData(
-      'FORCE_UPDATE_REQUIRED',
-      hideDashboardModules ? 'yes' : 'no',
-    );
-  }, [hideDashboardModules]);
-  // ✅ Fetch and save address once at Home start
-  useEffect(() => {
-    const fetchAndSaveInitialAddress = async () => {
-      try {
-        // ✅ Ensure permission first
-        const hasPermission = await Location.checkPermission();
-        if (!hasPermission) {
-          const granted = await Permissions.requestPermission();
-          if (!granted) {
-            __DEV__ &&
-              console.log('[Home] Permission denied, skipping location fetch');
-            return;
-          }
-        }
-
-        // ✅ Get address using your helper (it gets coords internally)
-        const geo =
-          (await Location.getAddressFromLatLong()) as DataType.GeoAddress;
-        console.log('[Home] updated geoLocation', geo);
-
-        if (geo?.lat && geo?.long) {
-          // Save to preferences
-          Preferences.setData(Preferences.KEY.LAST_GEO_ADDRESS, {
-            lat: geo.lat,
-            long: geo.long,
-            address: geo.address ?? '',
-          });
-
-          __DEV__ &&
-            console.log('[Home] initial address fetched:', geo.address);
-
-          // ✅ Trigger first post after address fetched
-          await postOnceIfDue('fg', dispatch);
-        } else {
-          __DEV__ && console.log('[Home] could not fetch valid coordinates');
-        }
-      } catch (err) {
-        __DEV__ && console.warn('[Home] initial address fetch error:', err);
-      }
-    };
-
-    // small delay for GPS initialization
-    const timer = setTimeout(fetchAndSaveInitialAddress, 1000);
-    return () => clearTimeout(timer);
-  }, [dispatch]);
-
-  const appVersionName = DeviceInfo.getVersion();
-  const appBuildNumber = DeviceInfo.getBuildNumber();
-  const serverVersionCode =
-    dashboardList?.mobileAppVersion1?.version_code ??
-    dashboardList?.mobileAppVersion?.version_code;
-
+  // ===== Render =====
   return (
     <Screen
       loading={loading || isLoading}
@@ -1103,14 +945,12 @@ const Home: FC<ScreenProps.Home> = ({loading, dashboardList, navigation}) => {
             onBellPress={() => {}}
           />
           <View style={styles.innerContainer}>
-            {/* ✅ ADDED BACK: Render projects, but from our static local data */}
             <ProjectList
               onRefresh={() => {
-                // still hits APIs but UI remains from static list
                 sync();
                 getDashboardData(true);
               }}
-              data={uiProjects} // 🔁 CHANGED: show ONLY custom local project
+              data={uiProjects}
               desc={dashboardList?.mobileAppVersion1?.description ?? ''}
               code={dashboardList?.mobileAppVersion?.version_code ?? ''}
             />
@@ -1125,13 +965,6 @@ const Home: FC<ScreenProps.Home> = ({loading, dashboardList, navigation}) => {
               }}
             />
           )}
-          {/* {currentAddress ? (
-            <View style={{paddingHorizontal: 16, paddingVertical: 8}}>
-              <Text style={{color: COLORS.PRIMARY, fontSize: 14}}>
-                📍 {currentAddress}
-              </Text>
-            </View>
-          ) : null} */}
           <SyncOfflineDataSheet
             show={showSync}
             onSyncPress={() => syncOfflineData()}
@@ -1201,7 +1034,6 @@ const styles = StyleSheet.create({
     fontSize: SIZE.MVS(20),
     color: COLORS.PRIMARY_DARK,
   },
-
   subModuleItemView: {margin: 5},
   subModuleListContainer: {flexDirection: 'row', flexWrap: 'wrap'},
   innerContainer: {
@@ -1209,9 +1041,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.BACKGROUND_DEFAULT,
     padding: 15,
   },
-  moduleCardContainer: {
-    flex: 1,
-  },
+  moduleCardContainer: {flex: 1},
   moduleCardImageContainer: {
     backgroundColor: COLORS.WHITE,
     borderRadius: SIZE.MS(12),
@@ -1247,7 +1077,6 @@ const styles = StyleSheet.create({
     color: COLORS.PRIMARY,
     margin: SIZE.MS(10),
   },
-
   updateScreen: {
     flex: 1,
     backgroundColor: COLORS.BACKGROUND_DEFAULT,
@@ -1256,10 +1085,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  updateScreenInner: {
-    width: '100%',
-    maxWidth: 420,
-  },
+  updateScreenInner: {width: '100%', maxWidth: 420},
   updateCard: {
     backgroundColor: COLORS.WHITE,
     borderRadius: SIZE.MS(12),

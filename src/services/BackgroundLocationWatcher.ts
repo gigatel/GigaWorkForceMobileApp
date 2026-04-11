@@ -11,8 +11,7 @@ export function startBackgroundLocationWatcher() {
     __DEV__ && console.log('[BG Watcher] already running');
     return;
   }
-
-  try {
+    try {
     // @ts-ignore
     Geolocation.setRNConfiguration?.({
       skipPermissionRequests: false,

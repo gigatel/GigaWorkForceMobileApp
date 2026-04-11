@@ -30,4 +30,34 @@ export const travelStop = BASE_URL3 + 'Complaint/StopVehicleStatus';
 export const HoldTicket = BASE_URL3 + 'Complaint/HoldTicketStatus';
 //getRfolistApi
 export const getRFOList = BASE_URL + 'RFO/GetRFOList';
+export const selectCompany = BASE_URL + 'Account/SelectCompany';
+export const getEmpDeviceList = BASE_URL + 'Account/GetEmpDeviceList';
+export const dashboardList = BASE_URL + 'AppDashboard/DashboardList2';
+export const getAppModules = BASE_URL + 'Policy/GetUserModuleAppModules?';
+//! Attendance
+export const viewAttendance = BASE_URL + 'Attendance/ViewAttendance';
+export const viewAttendanceInOutReport = BASE_URL + 'Attendance/ViewInOutReport';
+export const todayAttendance = BASE_URL + 'Attendance/TodayAttendance';
+export const getTodayWorkingOnBehalf = BASE_URL + 'Attendance/GetTodayWorkingOnBehalf';
+export const getEmpZoneChambers = BASE_URL + 'Zone/GetEmpZoneChambers';
+export const getEmpOfficeBranches = BASE_URL + 'Branch/GetEmpBranches';
+export const markAttendance = BASE_URL + 'Attendance/MarkAttendance';
+export const syncOfflineAttendance = BASE_URL + 'Attendance/SyncOfflineAttendance';
+//! Payroll₹
+export const monthlyEmpSalary = BASE_URL + 'EmpSalary/MonthalyEmpSalary';
+export const apiURLS = BASE_URL + '';
+//! Holidays | Contacts
+export const getHolidayList = BASE_URL + 'Holiday/GetEmpOptionalHoliday';
+export const insertUpdateEmpHolidayRequest = BASE_URL + 'Holiday/InsertUpdateEmpHolidayRequest';
+export const getEmployeeListContact = BASE_URL + 'Employee/GetEmployeeListForContact';
+//! Leave
+export const leaveStatus = BASE_URL + 'LeaveMaster/LeaveStatus';
+export const getEmpBalanceLeaves = BASE_URL + 'LeaveType/GetEmpBalanceLeaves';
+export const getEmployeeLeaveRequestPaggi = BASE_URL + 'LeaveType/GetEmployeeLeaveRequestPaggi';
+export const insertUpdateEmpLeaveRequest = BASE_URL + 'LeaveType/InsertUpdateEmpLeaveRequest';
+export const getEmployeeLeaveTyepDd = BASE_URL + 'LeaveType/GetEmployeeLeaveTyepDd';
+//! Employee
+export const getEmployeeListForContact = BASE_URL + 'Employee/GetEmployeeListForContact';
+export const updateMobileAddress = BASE_URL + 'Employee/UpdateMobileAddress';
+//! Patroller Task        
 //ticket_status_update_api

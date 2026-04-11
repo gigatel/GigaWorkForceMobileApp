@@ -1,5 +1,10 @@
 import React, {useEffect, useRef, useState} from 'react';
-import {NativeEventEmitter, NativeModules, Platform} from 'react-native';
+import {
+  NativeEventEmitter,
+  AppState,
+  NativeModules,
+  Platform,
+} from 'react-native';
 import {Provider} from 'react-redux';
 import {SafeAreaProvider} from 'react-native-safe-area-context';
 import {addEventListener as addNetListener} from '@react-native-community/netinfo';
@@ -96,6 +101,66 @@ const App = () => {
 
   useEffect(() => {
     initializeApp();
+  }, []);
+  // ---- 2) GPS / Services / NetInfo ----
+  // App.tsx — REPLACE your entire useEffect GPS/Services block
+
+  useEffect(() => {
+    if (Platform.OS === 'android') {
+      setupForegroundServiceEvents();
+      setupBackgroundServiceEvents();
+
+      Location.checkGps().then((enabled: boolean) => {
+        setIsGPSEnabled(enabled);
+        store.dispatch(updateGpsStatus(enabled));
+      });
+
+      const gpsEmitter = new NativeEventEmitter(NativeModules.GpsStatusModule);
+      gpsSubscription.current = gpsEmitter.addListener(
+        'GpsStatusChanged',
+        (enabled: boolean) => {
+          setIsGPSEnabled(enabled);
+          store.dispatch(updateGpsStatus(enabled));
+          Common.log('GPS STATUS::', enabled);
+        },
+      );
+    }
+
+    startOfflineSync();
+    Voice.setLanguage('hi-IN');
+
+    const ttsEmitter = new NativeEventEmitter(NativeModules.TextToSpeech);
+    const ttsStart = ttsEmitter.addListener('tts-start', () =>
+      Common.log('TTS started'),
+    );
+    const ttsFinish = ttsEmitter.addListener('tts-finish', () =>
+      Common.log('TTS Finish'),
+    );
+    const ttsCancel = ttsEmitter.addListener('tts-cancel', () =>
+      Common.log('TTS Canceled'),
+    );
+
+    const netUnsubscribe = addNetListener(net => {
+      const isOnline =
+        (net.isConnected ?? false) || (net.isInternetReachable ?? false);
+      store.dispatch(updateNetStatus(!!isOnline));
+    });
+
+    // ✅ App.tsx mein AppState listener BILKUL NAHI — Home.tsx handle karega
+    // ❌ REMOVED: AppState.addEventListener — ye hi duplicate tha
+
+    return () => {
+      try {
+        ttsStart.remove();
+        ttsFinish.remove();
+        ttsCancel.remove();
+      } catch {}
+      netUnsubscribe();
+      if (Platform.OS === 'android' && gpsSubscription.current) {
+        gpsSubscription.current.remove();
+        gpsSubscription.current = null;
+      }
+    };
   }, []);
 
   useEffect(() => {
