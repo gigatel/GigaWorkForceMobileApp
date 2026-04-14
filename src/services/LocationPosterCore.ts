@@ -348,7 +348,7 @@ export function attachPosterDispatch(d: StoreDispatch) {
 // ─────────────────────────────────────────────────────────────────────────────
 // STATIC BACKGROUND URL — bundled directly, no .env needed in bg
 // ─────────────────────────────────────────────────────────────────────────────
-const BG_POST_URL = 'http://tech1.gigatel.work:60201/api/Location/PostLocation';
+const BG_POST_URL = 'http://mob.gigatel.me:60201/api/Location/PostLocation';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // THROTTLE CONFIG
