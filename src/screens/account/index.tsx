@@ -113,6 +113,7 @@ const Account: FC<ScreenProps.Account> = ({
             (employeeDetails?.lastName ?? '')
           }
           designation={employeeDetails?.designationName ?? ''}
+          zonename={employeeDetails?.zoneName ?? ''}
           onLogoutPress={logout}
         />
         <ScrollView>

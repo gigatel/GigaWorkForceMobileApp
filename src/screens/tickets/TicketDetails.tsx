@@ -62,7 +62,14 @@ function normalizeApiItem(item: any): TicketDetailsData {
   return {
     id: item.id,
     LinkId: item.complaintCode,
+    priorityType: item.priorityType,
+    deviceName: item.deviceName,
+    specificProblem: item.specificProblem,
+    alarmDispName: item.alarmDispName,
     linkName: item.routeName,
+    zoneCode: item.zoneCode,
+    primaryLandmarkAfterName: item.primaryLandmarkAfterName,
+    secondaryLandmarkAfterName: item.secondaryLandmarkAfterName,
     linkDescription: '',
     customerName: '',
     circuitId: '',
@@ -83,7 +90,7 @@ function normalizeApiItem(item: any): TicketDetailsData {
     contactPersonName: '',
     contactPersonMobile: '',
     assignedTo: '',
-    assignedBy: item.createdByName,
+    assignedBy: item.assignedByName,
     createdDate: String(
       pick(
         item,
@@ -579,35 +586,60 @@ const TicketDetailsScreen: React.FC = () => {
           <View style={styles.tabContent}>
             <View style={styles.detailsSection}>
               <View style={styles.detailRow}>
-                <Text style={styles.purpleLabel}>Link ID</Text>
+                <Text style={styles.purpleLabel}>Complaint ID</Text>
                 <Text style={styles.detailValue}>{ticketDetails.LinkId}</Text>
               </View>
-              <View style={styles.detailRow}>
-                <Text style={styles.purpleLabel}>Link Name</Text>
-                <Text style={styles.detailValue}>{ticketDetails.linkName}</Text>
-              </View>
-              <View style={styles.detailRow}>
-                <Text style={styles.purpleLabel}>Fault Type</Text>
+                <View style={styles.detailRow}>
+                <Text style={styles.purpleLabel}>Priority</Text>
                 <Text style={[styles.detailValue, {color: 'red'}]}>
-                  {ticketDetails.natureOfFault}
+                  {ticketDetails.priorityType}
                 </Text>
               </View>
               <View style={styles.detailRow}>
-                <Text style={styles.purpleLabel}>Nms Type</Text>
+                <Text style={styles.purpleLabel}>Source Type</Text>
+                <Text style={styles.detailValue}>{ticketDetails?.nmsType}</Text>
+              </View>
+               <View style={styles.detailRow}>
+                <Text style={styles.purpleLabel}>Specific Problem</Text>
+                <Text style={styles.detailValue}>{ticketDetails.specificProblem}</Text>
+              </View>
+               <View style={styles.detailRow}>
+                <Text style={styles.purpleLabel}>Alarm Display Name</Text>
+                <Text style={styles.detailValue}>{ticketDetails.alarmDispName}</Text>
+              </View>
+               <View style={styles.detailRow}>
+                <Text style={styles.purpleLabel}>Device Name</Text>
                 <Text style={[styles.detailValue, {color: 'red'}]}>
-                  {ticketDetails.nmsType}
+                  {ticketDetails.deviceName}
                 </Text>
               </View>
               <View style={styles.detailRow}>
-                <Text style={styles.purpleLabel}>Pop Location</Text>
+                <Text style={styles.purpleLabel}>Grahm Panchayat</Text>
+                <Text style={[styles.detailValue, ]}>
+                  {ticketDetails?.popLocation}
+                </Text>
+              </View>
+               <View style={styles.detailRow}>
+                <Text style={styles.purpleLabel}>District</Text>
+                <Text style={styles.detailValue}>{ticketDetails.secondaryLandmarkAfterName}</Text>
+              </View>
+              <View style={styles.detailRow}>
+                <Text style={styles.purpleLabel}>Zone</Text>
                 <Text style={[styles.detailValue, {color: 'red'}]}>
-                  {ticketDetails.popLocation}
+                  {ticketDetails.zoneCode}
+                </Text>
+              </View>
+              <View style={styles.detailRow}>
+                <Text style={styles.purpleLabel}>Block</Text>
+                <Text style={[styles.detailValue, {color: 'red'}]}>
+                  {ticketDetails.primaryLandmarkAfterName}
                 </Text>
               </View>
 
+
               {/* CUT LOCATION */}
               <View style={styles.detailRow}>
-                <Text style={styles.purpleLabel}>Cut Location</Text>
+                <Text style={styles.purpleLabel}>Address</Text>
                 <View style={styles.valueBlock}>
                   <Text style={styles.detailValue}>
                     {ticketDetails.address || address}
@@ -621,18 +653,19 @@ const TicketDetailsScreen: React.FC = () => {
                   </View>
                 </View>
               </View>
-              <View style={styles.detailRow}>
-                <Text style={styles.purpleLabel}>Total Distance</Text>
+             
+              {/* <View style={styles.detailRow}>
+                <Text style={styles.purpleLabel}>Device Name</Text>
                 <Text style={styles.detailValue}>
                   {Number(ticketDetails.totalDistanceKm).toFixed(3)} mtr
                 </Text>
-              </View>
-              <View style={styles.detailRow}>
-                <Text style={styles.purpleLabel}>Cut Distance</Text>
+              </View> */}
+              {/* <View style={styles.detailRow}>
+                <Text style={styles.purpleLabel}>Issue Type</Text>
                 <Text style={styles.detailValue}>
                   {ticketDetails.cutDistanceKm} mtr
                 </Text>
-              </View>
+              </View> */}
             </View>
           </View>
         ) : (

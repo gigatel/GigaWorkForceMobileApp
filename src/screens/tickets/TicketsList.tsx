@@ -32,8 +32,13 @@ type Ticket = {
   priority: 'low' | 'medium' | 'high';
   status: 'Assigned' | 'In Progress' | 'Closed By Splicer' | string;
   customerName: string;
+  zone?: string;
+  block?: string;
+  priorityType?: string;
+  sourceType?: string;  
   circuitId?: string;
   natureOfFault?: string;
+  deviceName?: string;
   nmsType?: string;
   popLocation?: string; //added
   circuitFrom?: string; //added
@@ -52,6 +57,12 @@ type ApiTicketItem = {
   alarmType: string;
   totalDistance: number;
   cutDistance: number;
+  zone: string;
+  block: string;
+  priorityType: string;
+  sourceType: string;
+  circuitId: string;
+  deviceName: string;
   latLng: string;
   status: string;
   statusUpdatedOn: string | null;
@@ -170,6 +181,12 @@ const TicketsList: React.FC = () => {
       status: it.status || 'Assigned',
       customerName: it.routeName || '-',
       natureOfFault: it.alarmType || '-',
+      zone: it.zone || '-',
+      block: it.block || '-',
+      priorityType: it.priorityType || '-',
+      sourceType: it.sourceType || '-',
+      circuitId: it.circuitId || '-',
+      deviceName: it.deviceName || '-',
       popLocation: it.popLocation || '-',
       nmsType: it.nmsType || '-',
       assignedBy: it.assignedByName || it.statusUpdatedByName || '-',
@@ -221,6 +238,12 @@ const TicketsList: React.FC = () => {
         (t.circuitId || '').toLowerCase().includes(q) ||
         (t.natureOfFault || '').toLowerCase().includes(q) ||
         (t.popLocation || '').toLowerCase().includes(q) ||
+        (t.zone || '').toLowerCase().includes(q) ||
+        (t.block || '').toLowerCase().includes(q) ||
+        (t.priorityType || '').toLowerCase().includes(q) ||
+        (t.sourceType || '').toLowerCase().includes(q) ||
+        (t.circuitId || '').toLowerCase().includes(q) ||
+        (t.deviceName || '').toLowerCase().includes(q) ||
         (t.assignedTo || '').toLowerCase().includes(q) ||
         (t.assignedBy || '').toLowerCase().includes(q) ||
         (t.linkName || '').toLowerCase().includes(q) ||
@@ -303,11 +326,18 @@ const TicketsList: React.FC = () => {
               </View>
             </View>
             <View style={styles.grid}>
-              <Field label="Link Name" value={item.linkName} />
-              <Field label="Issue Type" value={item.natureOfFault} highlight />
-              <Field label="Nms Type" value={item.nmsType} highlight />
-              <Field label="Pop Location" value={item.popLocation} highlight />
+              {/* <Field label="Link Name" value={item.linkName} /> */}
+              {/* <Field label="Complaint ID" value={item.transactionNo} /> */}
+              <Field label="Zone" value={item.zone} />
+              <Field label="Block" value={item.block} />
+              <Field label="GP" value={item.popLocation} />
+              <Field label="Priority" value={item.priorityType} />
+              <Field label="Source Type" value={item.nmsType} />
+              
+              {/* <Field label="DeviceName" value={item.deviceName} /> */}
+              {/* <Field label="Issue Type" value={item.natureOfFault} highlight /> */}
             </View>
+
             <View style={styles.footerCompact}>
               <Text style={styles.footerLabel} numberOfLines={1}>
                 By:{' '}
@@ -467,7 +497,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between', // FIXED
   },
   cardIndex: {
-    color: COLORS.PRIMARY,
+    color: COLORS.SECONDARY,
     fontWeight: '700',
     fontSize: SIZE.MS(14),
     marginRight: 4,

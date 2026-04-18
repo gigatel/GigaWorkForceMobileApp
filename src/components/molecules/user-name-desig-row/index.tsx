@@ -12,6 +12,7 @@ import {StyleSheet, Text, View, ViewStyle} from 'react-native';
 interface UserNameDesigRowProps {
   name: string;
   designation: string;
+  zonename?: string;
   onBellPress?: () => void;
   onLogoutPress?: () => void;
   style?: ViewStyle;
@@ -19,6 +20,7 @@ interface UserNameDesigRowProps {
 const UserNameDesigRow: FC<UserNameDesigRowProps> = ({
   name,
   designation,
+  zonename,
   onBellPress,
   onLogoutPress,
   style,
@@ -31,6 +33,7 @@ const UserNameDesigRow: FC<UserNameDesigRowProps> = ({
       <View style={styles.nameTextView}>
         <Text style={styles.userNameText}>{name}</Text>
         <Text style={styles.userDesignText}>{designation}</Text>
+        <Text style={styles.userDesignText}>{zonename}</Text>
       </View>
       {onBellPress && (
         <Buttons

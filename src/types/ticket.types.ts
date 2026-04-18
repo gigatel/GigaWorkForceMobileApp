@@ -34,6 +34,17 @@ export interface TicketDataGtpl {
  export interface TicketDetailsData {
   id: string;
   LinkId: string;
+  deviceName: string;
+   secondaryLandmarkAfterName: string;
+   secondaryLandmarkBeforeName: string;
+   primaryLandmarkAfterName: string;
+   primaryLandmarkBeforeName: string;
+   popLocation: string;
+   nmsType: string;
+    zoneCode: string;
+   priorityType: string;
+   specificProblem: string;
+   alarmDispName: string;
   linkName: string;
   linkDescription: string;
   customerName: string;

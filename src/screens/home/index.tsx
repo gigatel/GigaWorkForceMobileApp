@@ -942,6 +942,7 @@ const Home: FC<ScreenProps.Home> = ({loading, dashboardList, navigation}) => {
               (dashboardList?.employeeDetails?.lastName ?? '')
             }
             designation={dashboardList?.employeeDetails?.designationName ?? ''}
+            zonename={dashboardList?.employeeDetails?.zoneName ?? ''}
             onBellPress={() => {}}
           />
           <View style={styles.innerContainer}>
