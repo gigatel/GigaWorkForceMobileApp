@@ -2074,6 +2074,27 @@ PODS:
     - ReactCommon/turbomodule/bridging
     - ReactCommon/turbomodule/core
     - Yoga
+  - RNVectorIcons (10.3.0):
+    - DoubleConversion
+    - glog
+    - hermes-engine
+    - RCT-Folly (= 2024.11.18.00)
+    - RCTRequired
+    - RCTTypeSafety
+    - React-Core
+    - React-debug
+    - React-Fabric
+    - React-featureflags
+    - React-graphics
+    - React-ImageManager
+    - React-NativeModulesApple
+    - React-RCTFabric
+    - React-rendererdebug
+    - React-utils
+    - ReactCodegen
+    - ReactCommon/turbomodule/bridging
+    - ReactCommon/turbomodule/core
+    - Yoga
   - SocketRocket (0.7.1)
   - TextToSpeech (4.1.1):
     - React-Core
@@ -2188,6 +2209,7 @@ DEPENDENCIES:
   - "RNNotifee (from `../node_modules/@notifee/react-native`)"
   - RNPermissions (from `../node_modules/react-native-permissions`)
   - RNScreens (from `../node_modules/react-native-screens`)
+  - RNVectorIcons (from `../node_modules/react-native-vector-icons`)
   - TextToSpeech (from `../node_modules/react-native-tts`)
   - VisionCamera (from `../node_modules/react-native-vision-camera`)
   - Yoga (from `../node_modules/react-native/ReactCommon/yoga`)
@@ -2404,6 +2426,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native-permissions"
   RNScreens:
     :path: "../node_modules/react-native-screens"
+  RNVectorIcons:
+    :path: "../node_modules/react-native-vector-icons"
   TextToSpeech:
     :path: "../node_modules/react-native-tts"
   VisionCamera:
@@ -2520,6 +2544,7 @@ SPEC CHECKSUMS:
   RNNotifee: 5e3b271e8ea7456a36eec994085543c9adca9168
   RNPermissions: 3923570f4a2ebf150a3e6011826b8f0fcbf9c37e
   RNScreens: b0691b7488fc428136a2e7abab32f751b01b2696
+  RNVectorIcons: 0e915baaf807d5dfed506a14f23a29476c1f07f9
   SocketRocket: d4aabe649be1e368d1318fdf28a022d714d65748
   TextToSpeech: 89b239221ec378d213af422d14789a729705360b
   Toast: 1f5ea13423a1e6674c4abdac5be53587ae481c4e

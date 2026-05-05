@@ -14,6 +14,7 @@ import { deviceReducer } from './slices/device.slice';
 import { chamberComplaintReducer } from './slices/chamber-complaint.slice';
 import { leaveReducer } from './slices/leave.slice';
 import { ticketReducer } from '@slices/tickets.slice';
+import { notificationsReducer } from './slices/notifications.slice';
 export const RESET_STORE = 'RESET_STORE';
 
 export const resetStore = () => ({
@@ -32,6 +33,7 @@ const appReducer = combineReducers({
   chamberComplaint: chamberComplaintReducer,
   leave: leaveReducer,
   tickets: ticketReducer,
+  notifications: notificationsReducer,
 });
 export const rootReducer = (
   state: RootState | undefined,

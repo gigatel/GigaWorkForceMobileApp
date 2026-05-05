@@ -24,6 +24,7 @@ import {
 } from './utils/locationService';
 
 import {updateGpsStatus, updateNetStatus} from '@slices/device.slice';
+import {addNotification} from '@slices/notifications.slice';
 import {Common, Location, Voice, Preferences} from '@utils';
 // ⬇️ NEW: import siren helpers
 import {ensureAllSirenChannel, displayWithSiren} from './utils/AllSiren';
@@ -58,9 +59,17 @@ preparePushPermissions().catch(() => {});
 // 🔔 Background handler must be outside a component.
 messaging().setBackgroundMessageHandler(async remoteMessage => {
   try {
-    // ⬇️ CHANGED: always show with siren
     const n = remoteMessage?.notification || {};
     const d = remoteMessage?.data || {};
+    // Dispatch to Redux store
+    store.dispatch(
+      addNotification({
+        title: n.title || (d as any)?.title,
+        body: n.body || (d as any)?.body,
+        data: d,
+      }),
+    );
+    // ⬇️ CHANGED: always show with siren
     await displayWithSiren({
       title: n.title || (d as any)?.title,
       body: n.body || (d as any)?.body,
@@ -209,6 +218,16 @@ const App = () => {
         unsubscribeOpened = messaging().onNotificationOpenedApp(
           remoteMessage => {
             Common.success?.('Opened from Background', remoteMessage);
+            const n = remoteMessage?.notification || {};
+            const d = remoteMessage?.data || {};
+            // Dispatch to Redux store
+            store.dispatch(
+              addNotification({
+                title: n.title || (d as any)?.title,
+                body: n.body || (d as any)?.body,
+                data: d,
+              }),
+            );
             // TODO: navigate based on remoteMessage.data if needed
           },
         );
@@ -217,9 +236,17 @@ const App = () => {
         unsubscribeOnMessage = messaging().onMessage(async remoteMessage => {
           Common.success?.('Foreground FCM', remoteMessage);
           try {
-            // ⬇️ CHANGED: always show with siren
             const n = remoteMessage?.notification || {};
             const d = remoteMessage?.data || {};
+            // Dispatch to Redux store
+            store.dispatch(
+              addNotification({
+                title: n.title || (d as any)?.title,
+                body: n.body || (d as any)?.body,
+                data: d,
+              }),
+            );
+            // ⬇️ CHANGED: always show with siren
             await displayWithSiren({
               title: n.title || (d as any)?.title,
               body: n.body || (d as any)?.body,

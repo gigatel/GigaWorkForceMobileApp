@@ -23,7 +23,7 @@
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSApplicationCategoryType</key>
-	<string></string>
+	<string/>
 	<key>LSApplicationQueriesSchemes</key>
 	<array>
 		<string>itms-services</string>
@@ -64,8 +64,8 @@
 	<string>Gigatrack need to access your location to submit daily tasks.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Gigatrack need to access your location to submit daily tasks.</string>
-  <key>NSLocationAlwaysUsageDescription</key>
-  <string>This app uses your location to provide accurate services.</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>This app uses your location to provide accurate services.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Need to access the Camera for taking the picture for attendance, duty task and Chambers.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
@@ -74,13 +74,25 @@
 	<string>Need to access the Photo Library for saving the images and upload the chambers image.</string>
 	<key>UIAppFonts</key>
 	<array>
-		<string>Roboto-Black.ttf</string>
-		<string>Roboto-Bold.ttf</string>
-		<string>Roboto-ExtraBold.ttf</string>
-		<string>Roboto-Light.ttf</string>
-		<string>Roboto-Medium.ttf</string>
-		<string>Roboto-Regular.ttf</string>
-		<string>Roboto-SemiBold.ttf</string>
+		<string>Fontisto.ttf</string>
+		<string>Octicons.ttf</string>
+		<string>Feather.ttf</string>
+		<string>FontAwesome6_Regular.ttf</string>
+		<string>Entypo.ttf</string>
+		<string>FontAwesome5_Brands.ttf</string>
+		<string>MaterialCommunityIcons.ttf</string>
+		<string>AntDesign.ttf</string>
+		<string>Foundation.ttf</string>
+		<string>Ionicons.ttf</string>
+		<string>FontAwesome5_Solid.ttf</string>
+		<string>FontAwesome5_Regular.ttf</string>
+		<string>FontAwesome.ttf</string>
+		<string>Zocial.ttf</string>
+		<string>EvilIcons.ttf</string>
+		<string>FontAwesome6_Solid.ttf</string>
+		<string>SimpleLineIcons.ttf</string>
+		<string>FontAwesome6_Brands.ttf</string>
+		<string>MaterialIcons.ttf</string>
 	</array>
 	<key>UIBackgroundModes</key>
 	<array>

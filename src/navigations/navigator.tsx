@@ -44,6 +44,7 @@ import {TicketDetailsData} from '../../src/types/ticket.types';
 import CloseTicketScreen from '@screens/tickets/CloseTicketScreen';
 import SearchCustomer from '@screens/SearchCustomer';
 import HoldTicketScreen from '@screens/tickets/HoldTicketScreen';
+import NotificationScreen from '@screens/notifications';
 type VideoRecorderRouteParams = {
   projectId: string;
   latLng: string;
@@ -124,6 +125,7 @@ export interface RootStackParamList {
   MapViewScreen: {latitude: number; longitude: number; title: string};
   IRDetailsScreen: {irId: string; ticketId: string; irData: any};
   VideoRecorder: VideoRecorderRouteParams;
+  Notifications: undefined;
 
   [key: string]: any;
 }
@@ -139,6 +141,7 @@ const RootStack: FC<{initialRoute: string}> = ({initialRoute}) => {
       <Stack.Screen name="Splash" component={Splash} />
       <Stack.Screen name="Login" component={Login} />
       <Stack.Screen name="BottomTab" component={BottomTab} />
+      <Stack.Screen name="Notifications" component={NotificationScreen} />
       <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicy} />
       <Stack.Screen name="OtpVerification" component={OtpVerification} />
       <Stack.Screen name="AttendanceInOut" component={AttendanceInOut} />

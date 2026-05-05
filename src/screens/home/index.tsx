@@ -901,6 +901,7 @@ const Home: FC<ScreenProps.Home> = ({loading, dashboardList, navigation}) => {
     <Screen
       loading={loading || isLoading}
       statusBgColor={COLORS.PRIMARY}
+      
       preset="fixed">
       {hideDashboardModules ? (
         <UpdateGateScreen>
@@ -943,7 +944,9 @@ const Home: FC<ScreenProps.Home> = ({loading, dashboardList, navigation}) => {
             }
             designation={dashboardList?.employeeDetails?.designationName ?? ''}
             zonename={dashboardList?.employeeDetails?.zoneName ?? ''}
-            onBellPress={() => {}}
+            onBellPress={() => {
+              navigator?.getParent()?.navigate('Notifications');
+            }}
           />
           <View style={styles.innerContainer}>
             <ProjectList

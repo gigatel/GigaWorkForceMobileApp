@@ -18,6 +18,13 @@ export type PrivacyPolicy = NativeStackScreenProps<
   RootStackParamList,
   'PrivacyPolicy'
 > & PrivacyPolicyParams
+
+//!=============== Notifications ===============!//
+export interface NotificationsParams extends Loading { }
+export type Notifications = NativeStackScreenProps<
+  RootStackParamList,
+  'Notifications'
+> & NotificationsParams
 export interface DeveloperPKPScreenParams extends Loading {
 }
 export interface SearchCustomerParams extends Loading {
